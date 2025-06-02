@@ -1,0 +1,88 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local BotChatEvent = ReplicatedStorage:WaitForChild("BotChatEvent")
+
+local greetings = {
+	["hello"] = { lang = "English", reply = "Hello" },
+	["hi"] = { lang = "English", reply = "Hi" },
+	["hey"] = { lang = "English", reply = "Hey" },
+	["sup"] = { lang = "English", reply = "Sup" },
+	["yo"] = { lang = "English", reply = "Yo" },
+	["hola"] = { lang = "Spanish", reply = "¡Hola" },
+	["bonjour"] = { lang = "French", reply = "Bonjour" },
+	["hallo"] = { lang = "German", reply = "Hallo" },
+	["ciao"] = { lang = "Italian", reply = "Ciao" },
+	["salut"] = { lang = "French", reply = "Salut" },
+	["namaste"] = { lang = "Hindi", reply = "Namaste" },
+	["konichiwa"] = { lang = "Japanese", reply = "Konichiwa" },
+	["こんにちは"] = { lang = "Japanese", reply = "こんにちは" },
+	["안녕"] = { lang = "Korean", reply = "안녕" },
+	["ni hao"] = { lang = "Chinese", reply = "Nǐ hǎo" },
+	["你好"] = { lang = "Chinese", reply = "你好" },
+	["salaam"] = { lang = "Arabic", reply = "Salaam" },
+	["مرحبا"] = { lang = "Arabic", reply = "Marhaba" },
+	["privet"] = { lang = "Russian", reply = "Privet" },
+	["здравствуйте"] = { lang = "Russian", reply = "Zdravstvuyte" }
+}
+
+local funFacts = {
+	"Honey never spoils.", "Bananas are berries, but strawberries aren't.",
+	"A day on Venus is longer than a year on Venus.", "Octopuses have three hearts.",
+	"The Eiffel Tower grows in the summer.", "Sloths can hold their breath longer than dolphins.",
+	"A bolt of lightning is five times hotter than the sun.", "Sharks existed before trees.",
+	"Humans share 60% of DNA with bananas.", "Some turtles can breathe through their butts.",
+	"Koalas have fingerprints like humans.", "There's a planet made of diamonds.",
+	"Ants can survive in a microwave.", "A group of flamingos is called a 'flamboyance'.",
+	"The moon has moonquakes.", "There's a species of jellyfish that can live forever.",
+	"Wombat poop is cube-shaped.", "Tomatoes were once thought to be poisonous.",
+	"Butterflies can taste with their feet.", "Your brain uses about 20% of your body's energy.",
+	"Rain contains vitamin B12.", "Goats have rectangular pupils.", "Some frogs can be frozen and survive.",
+	"A shrimp's heart is in its head.", "Bees can recognize human faces.", "Starfish have no brain or blood.",
+	"Elephants can't jump.", "Penguins propose with pebbles.", "Apples float because they are 25% air.",
+	"An ostrich's eye is bigger than its brain.", "Sea otters hold hands while sleeping.",
+	"Spiders can’t fly, but they can balloon on wind.", "Cows have best friends.",
+	"Octopuses have blue blood.", "Humans glow in the dark, but it’s invisible to our eyes.",
+	"Clouds can weigh over a million pounds.", "A snail can sleep for 3 years.",
+	"An eagle can spot a rabbit 2 miles away.", "Jellyfish have been around for over 500 million years.",
+	"Some fish cough.", "Oranges are not always orange.", "Water can boil and freeze at the same time.",
+	"Hot water can freeze faster than cold water.", "Avocados are toxic to birds.",
+	"A baby puffin is called a puffling.", "Bats always turn left when exiting a cave.",
+	"Some metals explode when exposed to water.", "Butterflies remember being caterpillars.",
+	"The average person walks the equivalent of five times around the world in a lifetime."
+}
+
+local pendingFunFact = {}
+
+Players.PlayerAdded:Connect(function(player)
+	player.Chatted:Connect(function(msg)
+		local lowerMsg = msg:lower()
+
+		-- Check for follow-up to "Do you want a fun fact?"
+		if pendingFunFact[player.UserId] then
+			if lowerMsg == "yes" then
+				local fact = funFacts[math.random(1, #funFacts)]
+				BotChatEvent:FireClient(player, "Here's a fun fact: " .. fact)
+				pendingFunFact[player.UserId] = nil
+				return
+			elseif lowerMsg == "no" then
+				BotChatEvent:FireClient(player, "Oh okay, so what you wanna talk abt?")
+				pendingFunFact[player.UserId] = nil
+				return
+			end
+		end
+
+		-- Check for greetings
+		for word in lowerMsg:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+			local greetingData = greetings[word]
+			if greetingData then
+				local reply = greetingData.reply
+				local language = greetingData.lang
+				BotChatEvent:FireClient(player, reply .. "!")
+				wait(0.5)
+				BotChatEvent:FireClient(player, language .. ": Hello! Do you want a fun fact?")
+				pendingFunFact[player.UserId] = true
+				break
+			end
+		end
+	end)
+end)
