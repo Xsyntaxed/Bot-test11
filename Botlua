@@ -1,76 +1,105 @@
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
+local StarterGui = game:GetService("StarterGui")
 
 local localPlayer = Players.LocalPlayer
-local ChatChannel = TextChatService.TextChannels.RBXGeneral
+local selectedLanguage = nil
+local translationEnabled = true
 
-local chosenLanguage = nil
-local translatingEnabled = false
-local alreadyNotified = false
-
-local languageMaps = {
-    ["1"] = {
-        A="啊", B="吧", C="吃", D="的", E="鹅", F="发", G="个", H="和", I="一", J="鸡",
-        K="可", L="了", M="么", N="你", O="哦", P="怕", Q="去", R="人", S="是", T="他",
-        U="乌", V="维", W="我", X="西", Y="呀", Z="在", [" "]=" "
+-- Translation tables
+local translations = {
+    Chinese = {
+        A = "啊", B = "比", C = "西", D = "迪", E = "伊", F = "艾弗", G = "吉",
+        H = "艾尺", I = "爱", J = "杰", K = "开", L = "艾勒", M = "艾姆",
+        N = "艾娜", O = "哦", P = "屁", Q = "苦", R = "艾儿", S = "艾丝",
+        T = "提", U = "玉", V = "维", W = "达布留", X = "艾克斯", Y = "吾艾", Z = "贼德",
+        a = "啊", b = "比", c = "西", d = "迪", e = "伊", f = "艾弗", g = "吉",
+        h = "艾尺", i = "爱", j = "杰", k = "开", l = "艾勒", m = "艾姆",
+        n = "艾娜", o = "哦", p = "屁", q = "苦", r = "艾儿", s = "艾丝",
+        t = "提", u = "玉", v = "维", w = "达布留", x = "艾克斯", y = "吾艾", z = "贼德",
     },
-    ["2"] = {
-        A="А", B="Б", C="Ц", D="Д", E="Е", F="Ф", G="Г", H="Х", I="И", J="Й",
-        K="К", L="Л", M="М", N="Н", O="О", P="П", Q="К", R="Р", S="С", T="Т",
-        U="У", V="В", W="Ш", X="Кс", Y="Ы", Z="З", [" "]=" "
+    Russian = {
+        A = "А", B = "Б", C = "Ц", D = "Д", E = "Е", F = "Ф", G = "Г",
+        H = "Х", I = "И", J = "Й", K = "К", L = "Л", M = "М", N = "Н",
+        O = "О", P = "П", Q = "К", R = "Р", S = "С", T = "Т", U = "У",
+        V = "В", W = "Щ", X = "КС", Y = "Ы", Z = "З",
+        a = "а", b = "б", c = "ц", d = "д", e = "е", f = "ф", g = "г",
+        h = "х", i = "и", j = "й", k = "к", l = "л", m = "м", n = "н",
+        o = "о", p = "п", q = "к", r = "р", s = "с", t = "т", u = "у",
+        v = "в", w = "щ", x = "кс", y = "ы", z = "з",
     },
-    ["3"] = {
-        A="あ", B="び", C="こ", D="で", E="え", F="ふ", G="が", H="は", I="い", J="じ",
-        K="か", L="ら", M="ま", N="な", O="お", P="ぴ", Q="く", R="り", S="す", T="と",
-        U="う", V="ゔ", W="わ", X="くす", Y="ゆ", Z="ず", [" "]=" "
+    Japanese = {
+        A = "ア", B = "ビ", C = "シ", D = "ディ", E = "エ", F = "エフ", G = "ジ",
+        H = "エイチ", I = "アイ", J = "ジェイ", K = "ケイ", L = "エル", M = "エム",
+        N = "エヌ", O = "オー", P = "ピー", Q = "キュー", R = "アール", S = "エス",
+        T = "ティー", U = "ユー", V = "ブイ", W = "ダブリュー", X = "エックス", Y = "ワイ", Z = "ゼット",
+        a = "あ", b = "び", c = "し", d = "でぃ", e = "え", f = "えふ", g = "じ",
+        h = "えいち", i = "あい", j = "じぇい", k = "けい", l = "える", m = "えむ",
+        n = "えぬ", o = "おー", p = "ぴー", q = "きゅー", r = "あーる", s = "えす",
+        t = "てぃー", u = "ゆー", v = "ぶい", w = "だぶりゅー", x = "えっくす", y = "わい", z = "ぜっと",
     }
 }
 
--- Show language choice only once
-task.delay(1, function()
-    if not alreadyNotified then
-        alreadyNotified = true
-        StarterGui:SetCore("SendNotification", {
-            Title = "Language Selection",
-            Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
-            Duration = 10
-        })
-        ChatChannel:SendAsync("Hi! Please press 1 (Chinese), 2 (Russian), or 3 (Japanese).")
+-- Notify player of language selection
+StarterGui:SetCore("SendNotification", {
+    Title = "Language Selection",
+    Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
+    Duration = 10
+})
+
+-- Translate function
+local function translateMessage(message)
+    if not translationEnabled or not selectedLanguage then
+        return message
     end
-end)
-
--- Listen for incoming messages
-TextChatService.OnIncomingMessage = function(message)
-    if not message.TextSource then return end
-    local fromPlayer = Players:GetPlayerByUserId(message.TextSource.UserId)
-    if not fromPlayer or fromPlayer ~= localPlayer then return end
-
-    local text = message.Text
-    if text == "1" or text == "2" or text == "3" then
-        chosenLanguage = text
-        translatingEnabled = true
-        StarterGui:SetCore("SendNotification", {
-            Title = "Language Selected",
-            Text = "You chose: " .. (text == "1" and "Chinese" or text == "2" and "Russian" or "Japanese"),
-            Duration = 5
-        })
-        return
+    local translated = ""
+    for i = 1, #message do
+        local char = message:sub(i, i)
+        translated = translated .. (translations[selectedLanguage][char] or char)
     end
+    return translated
+end
 
-    if translatingEnabled and chosenLanguage and languageMaps[chosenLanguage] then
-        local map = languageMaps[chosenLanguage]
-        local translated = ""
-        for i = 1, #text do
-            local char = string.upper(text:sub(i, i))
-            translated = translated .. (map[char] or char)
+-- Listen to chat messages
+TextChatService.MessageReceived:Connect(function(message)
+    if message.TextSource and message.TextSource.UserId == localPlayer.UserId then
+        local text = message.Text
+
+        -- Handle language selection
+        if not selectedLanguage then
+            if text == "1" then
+                selectedLanguage = "Chinese"
+            elseif text == "2" then
+                selectedLanguage = "Russian"
+            elseif text == "3" then
+                selectedLanguage = "Japanese"
+            end
+
+            if selectedLanguage then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Language Set",
+                    Text = "You chose: " .. selectedLanguage,
+                    Duration = 5
+                })
+            end
+            return
         end
 
-        -- Prevent double messages or loops
-        task.delay(0.5, function()
-            if text ~= translated then
-                ChatChannel:SendAsync(translated)
-            end
-        end)
+        -- Handle stop command
+        if text == "?stop" then
+            translationEnabled = false
+            StarterGui:SetCore("SendNotification", {
+                Title = "Translation Disabled",
+                Text = "You stopped translation.",
+                Duration = 4
+            })
+            return
+        end
+
+        -- Translate and send new message
+        if translationEnabled and selectedLanguage then
+            local translated = translateMessage(text)
+            TextChatService.TextChannels.RBXGeneral:SendAsync(translated)
+        end
     end
-end
+end)
