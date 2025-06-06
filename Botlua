@@ -54,12 +54,14 @@ local alphabets = {
 local chosenLanguage = nil
 local translatingEnabled = false
 
+-- Initial notification to choose language
 StarterGui:SetCore("SendNotification", {
     Title = "Language Selection",
     Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
     Duration = 10
 })
 
+-- Chat handler
 local function onPlayerChatted(message)
     if not translatingEnabled then
         if message == "1" or message == "2" or message == "3" then
@@ -70,20 +72,9 @@ local function onPlayerChatted(message)
                 Text = "You chose language " .. chosenLanguage,
                 Duration = 5
             })
-            return -- Don't send language choice message
+            return
         end
-        return -- No translation yet, send message normally
-    else
-        if message:lower() == "?stop" then
-            translatingEnabled = false
-            chosenLanguage = nil
-            StarterGui:SetCore("SendNotification", {
-                Title = "Translation Stopped",
-                Text = "You stopped the language translation.",
-                Duration = 5
-            })
-            return -- Don't send stop command message
-        end
+        return
     end
 
     if translatingEnabled and chosenLanguage and alphabets[chosenLanguage] then
@@ -99,11 +90,12 @@ local function onPlayerChatted(message)
             end
         end
         Chat(translated)
-        return -- Block original message
     end
 end
 
+-- Connect chat event
 localPlayer.Chatted:Connect(onPlayerChatted)
 
+-- Final welcome message
 task.wait(1)
-Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese). Type ?stop to disable translation.")
+Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese).")
