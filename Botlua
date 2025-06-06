@@ -3,11 +3,19 @@ local VERSION = "2.5.5"
 local players = game:GetService("Players")
 local localPlayer = players.LocalPlayer
 local replicatedStorage = game:GetService("ReplicatedStorage")
-local StarterGui = game:GetService("StarterGui")
 local textChatService = game:GetService("TextChatService")
-local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
 
-local oldChat = textChatService.ChatVersion ~= Enum.ChatVersion.TextChatService
+local selectedLanguage = nil
+local isSending = false
+
+-- Chat sending function
+local oldChat
+if textChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+    oldChat = false
+else
+    oldChat = true
+end
 
 local function Chat(msg)
     if not oldChat then
@@ -17,80 +25,77 @@ local function Chat(msg)
     end
 end
 
+-- Notify helper
+local function notify(title, text, duration)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 5
+    })
+end
+
+-- Language letter map with vowel and consonant handling
 local alphabets = {
-    ["1"] = {
-        A = "ā", B = "b", C = "c", D = "d", E = "ē",
-        F = "f", G = "g", H = "h", I = "ī", J = "j",
-        K = "k", L = "l", M = "m", N = "n", O = "ō",
-        P = "p", Q = "q", R = "r", S = "s", T = "t",
-        U = "ū", V = "v", W = "w", X = "x", Y = "y", Z = "z",
-        [" "] = " "
+    ["1"] = { -- Chinese (approx)
+        A = "啊", B = "贝", C = "西", D = "的", E = "诶", F = "艾弗", G = "吉",
+        H = "艾尺", I = "伊", J = "杰", K = "开", L = "艾勒", M = "艾姆", N = "艾娜",
+        O = "哦", P = "屁", Q = "苦", R = "艾儿", S = "艾丝", T = "提", U = "优",
+        V = "维", W = "豆贝尔维", X = "艾克斯", Y = "吾艾", Z = "贼德"
     },
-    ["2"] = {
-        A = "А", B = "Б", C = "Ц", D = "Д", E = "Е",
-        F = "Ф", G = "Г", H = "Х", I = "И", J = "Й",
-        K = "К", L = "Л", M = "М", N = "Н", O = "О",
-        P = "П", Q = "К", R = "Р", S = "С", T = "Т",
-        U = "У", V = "В", W = "В", X = "Кс", Y = "Ы", Z = "З",
-        [" "] = " "
+    ["2"] = { -- Russian (Cyrillic transliteration)
+        A = "А", B = "Б", C = "С", D = "Д", E = "Е", F = "Ф", G = "Г",
+        H = "Х", I = "И", J = "Й", K = "К", L = "Л", M = "М", N = "Н",
+        O = "О", P = "П", Q = "К", R = "Р", S = "С", T = "Т", U = "У",
+        V = "В", W = "В", X = "КС", Y = "Ы", Z = "З"
     },
-    ["3"] = {
-        A = "あ", B = "ぶ", C = "く", D = "ど", E = "え",
-        F = "ふ", G = "ぐ", H = "は", I = "い", J = "じ",
-        K = "か", L = "る", M = "む", N = "ん", O = "お",
-        P = "ぷ", Q = "く", R = "る", S = "す", T = "と",
-        U = "う", V = "ゔ", W = "わ", X = "くす", Y = "い", Z = "ず",
-        [" "] = " "
+    ["3"] = { -- Japanese Hiragana (simplified phonetics)
+        A = "あ", B = "ば", C = "し", D = "で", E = "え", F = "ふ", G = "ぐ",
+        H = "は", I = "い", J = "じ", K = "け", L = "る", M = "む", N = "ん",
+        O = "お", P = "ぴ", Q = "きゅ", R = "ら", S = "す", T = "て", U = "う",
+        V = "ゔ", W = "わ", X = "えっくす", Y = "や", Z = "ぜ"
     }
 }
 
-local chosenLanguage = nil
-local translatingEnabled = false
+-- Translate message based on letter map
+local function translateMessageLetters(msg, lang)
+    local map = alphabets[lang]
+    if not map then return msg end
 
--- Show language picker
-StarterGui:SetCore("SendNotification", {
-    Title = "Language Selection",
-    Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
-    Duration = 10
-})
+    local result = {}
+    for i = 1, #msg do
+        local c = msg:sub(i,i)
+        local upper = c:upper()
+        if map[upper] then
+            table.insert(result, map[upper])
+        else
+            table.insert(result, c)
+        end
+    end
+    return table.concat(result)
+end
 
--- Detect key press for language choice
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed or translatingEnabled then return end
-    if input.KeyCode == Enum.KeyCode.One then
-        chosenLanguage = "1"
-    elseif input.KeyCode == Enum.KeyCode.Two then
-        chosenLanguage = "2"
-    elseif input.KeyCode == Enum.KeyCode.Three then
-        chosenLanguage = "3"
-    else
+-- Language picker prompt
+notify("Language Selection", "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese", 10)
+
+-- On chat input
+localPlayer.Chatted:Connect(function(msg)
+    if isSending then
+        isSending = false
         return
     end
 
-    translatingEnabled = true
-    StarterGui:SetCore("SendNotification", {
-        Title = "Language Selected",
-        Text = "You chose language " .. chosenLanguage,
-        Duration = 5
-    })
-end)
-
--- Translate anything typed into chat
-localPlayer.Chatted:Connect(function(message)
-    if not translatingEnabled or not alphabets[chosenLanguage] then return end
-
-    local langMap = alphabets[chosenLanguage]
-    local translated = ""
-    message = message:upper()
-
-    for i = 1, #message do
-        local char = message:sub(i, i)
-        translated = translated .. (langMap[char] or char)
+    if not selectedLanguage then
+        if msg == "1" or msg == "2" or msg == "3" then
+            selectedLanguage = msg
+            notify("Language Selected", "You chose option " .. selectedLanguage .. ".", 5)
+            isSending = true
+            Chat("You selected language option " .. selectedLanguage .. ". Your messages will now be translated.")
+        else
+            notify("Invalid Choice", "Type 1, 2, or 3 to choose language.", 5)
+        end
+    else
+        local translated = translateMessageLetters(msg, selectedLanguage)
+        isSending = true
+        Chat(translated)
     end
-
-    Chat(translated)
 end)
-
--- Show helper chat
-task.wait(1)
-Chat("Hi! Please press 1 (Chinese), 2 (Russian), or 3 (Japanese) on your keyboard.")
