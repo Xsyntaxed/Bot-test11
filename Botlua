@@ -152,4 +152,4 @@ players.PlayerChatted:Connect(onPlayerChatted)
 
 -- Send initial greeting in chat
 task.wait(1)
-Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese). Type ?stop to disable translation.")
+Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese) .")
