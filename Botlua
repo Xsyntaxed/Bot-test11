@@ -1,81 +1,76 @@
-local players = game:GetService("Players")
-local localPlayer = players.LocalPlayer
-local replicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
-local textChatService = game:GetService("TextChatService")
+local TextChatService = game:GetService("TextChatService")
 
-local oldChat = textChatService.ChatVersion ~= Enum.ChatVersion.TextChatService
+local localPlayer = Players.LocalPlayer
+local ChatChannel = TextChatService.TextChannels.RBXGeneral
+local chosenLanguage = nil
+local translatingEnabled = false
+local lastSentMessage = ""
 
-local function Chat(msg)
-    if not oldChat then
-        textChatService.TextChannels.RBXGeneral:SendAsync(msg)
-    else
-        replicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(msg, "All")
-    end
-end
-
--- Language maps
-local alphabets = {
+local languageMaps = {
     ["1"] = {
-        A = "啊", B = "吧", C = "吃", D = "的", E = "鹅", F = "发", G = "个", H = "和", I = "一", J = "鸡",
-        K = "可", L = "了", M = "么", N = "你", O = "哦", P = "怕", Q = "去", R = "人", S = "是", T = "他",
-        U = "乌", V = "维", W = "我", X = "西", Y = "呀", Z = "在", [" "] = " "
+        A="啊", B="吧", C="吃", D="的", E="鹅", F="发", G="个", H="和", I="一", J="鸡",
+        K="可", L="了", M="么", N="你", O="哦", P="怕", Q="去", R="人", S="是", T="他",
+        U="乌", V="维", W="我", X="西", Y="呀", Z="在", [" "]=" "
     },
     ["2"] = {
-        A = "А", B = "Б", C = "Ц", D = "Д", E = "Е", F = "Ф", G = "Г", H = "Х", I = "И", J = "Й",
-        K = "К", L = "Л", M = "М", N = "Н", O = "О", P = "П", Q = "К", R = "Р", S = "С", T = "Т",
-        U = "У", V = "В", W = "Ш", X = "Кс", Y = "Ы", Z = "З", [" "] = " "
+        A="А", B="Б", C="Ц", D="Д", E="Е", F="Ф", G="Г", H="Х", I="И", J="Й",
+        K="К", L="Л", M="М", N="Н", O="О", P="П", Q="К", R="Р", S="С", T="Т",
+        U="У", V="В", W="Ш", X="Кс", Y="Ы", Z="З", [" "]=" "
     },
     ["3"] = {
-        A = "あ", B = "び", C = "こ", D = "で", E = "え", F = "ふ", G = "が", H = "は", I = "い", J = "じ",
-        K = "か", L = "ら", M = "ま", N = "な", O = "お", P = "ぴ", Q = "く", R = "り", S = "す", T = "と",
-        U = "う", V = "ゔ", W = "わ", X = "くす", Y = "ゆ", Z = "ず", [" "] = " "
+        A="あ", B="び", C="こ", D="で", E="え", F="ふ", G="が", H="は", I="い", J="じ",
+        K="か", L="ら", M="ま", N="な", O="お", P="ぴ", Q="く", R="り", S="す", T="と",
+        U="う", V="ゔ", W="わ", X="くす", Y="ゆ", Z="ず", [" "]=" "
     }
 }
 
-local chosenLanguage = nil
-local translatingEnabled = false
-local lastTranslated = ""
+-- Send chat message
+local function Say(msg)
+    ChatChannel:SendAsync(msg)
+    lastSentMessage = msg
+end
 
--- Notification to user
+-- Show initial notification
 StarterGui:SetCore("SendNotification", {
     Title = "Language Selection",
     Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
     Duration = 10
 })
 
--- Chat monitor
-localPlayer.Chatted:Connect(function(msg)
-    msg = msg:lower()
-
-    -- Don't re-translate something we just sent
-    if msg == lastTranslated:lower() then return end
-
-    -- Detect language choice
-    if not translatingEnabled and (msg == "1" or msg == "2" or msg == "3") then
-        chosenLanguage = msg
-        translatingEnabled = true
-        StarterGui:SetCore("SendNotification", {
-            Title = "Language Selected",
-            Text = "You selected: " .. (msg == "1" and "Chinese" or msg == "2" and "Russian" or "Japanese"),
-            Duration = 5
-        })
-        return
-    end
-
-    -- If translating is enabled, translate chat
-    if translatingEnabled and alphabets[chosenLanguage] then
-        local translated = ""
-        local upperMsg = msg:upper()
-        for i = 1, #upperMsg do
-            local char = upperMsg:sub(i, i)
-            translated = translated .. (alphabets[chosenLanguage][char] or char)
-        end
-        lastTranslated = translated
-        Chat(translated)
-    end
-end)
-
--- Show helper message in chat
+-- Show chat prompt
 task.wait(1)
-Chat("Hi! Type 1 (Chinese), 2 (Russian), or 3 (Japanese) in chat to choose your language.")
+Say("Hi! Please press 1 (Chinese), 2 (Russian), or 3 (Japanese) on your keyboard.")
+
+-- Handle all chat messages
+TextChatService.OnIncomingMessage = function(msg)
+    if msg.TextSource and msg.TextSource.UserId == localPlayer.UserId then
+        local content = msg.Text:lower()
+
+        -- Ignore self-translation loop
+        if content == lastSentMessage:lower() then return end
+
+        if not translatingEnabled and (content == "1" or content == "2" or content == "3") then
+            chosenLanguage = content
+            translatingEnabled = true
+            StarterGui:SetCore("SendNotification", {
+                Title = "Language Selected",
+                Text = "You chose: " .. (content == "1" and "Chinese" or content == "2" and "Russian" or "Japanese"),
+                Duration = 5
+            })
+            return
+        end
+
+        if translatingEnabled and languageMaps[chosenLanguage] then
+            local map = languageMaps[chosenLanguage]
+            local translated = ""
+            for i = 1, #content do
+                local char = string.upper(content:sub(i, i))
+                translated = translated .. (map[char] or char)
+            end
+            Say(translated)
+        end
+    end
+end
