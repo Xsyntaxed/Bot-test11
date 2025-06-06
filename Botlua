@@ -35,6 +35,7 @@ local alphabets = {
 
 local chosenLanguage = nil
 local translatingEnabled = false
+local lastTranslated = ""
 
 -- Notification to user
 StarterGui:SetCore("SendNotification", {
@@ -46,6 +47,9 @@ StarterGui:SetCore("SendNotification", {
 -- Chat monitor
 localPlayer.Chatted:Connect(function(msg)
     msg = msg:lower()
+
+    -- Don't re-translate something we just sent
+    if msg == lastTranslated:lower() then return end
 
     -- Detect language choice
     if not translatingEnabled and (msg == "1" or msg == "2" or msg == "3") then
@@ -67,6 +71,7 @@ localPlayer.Chatted:Connect(function(msg)
             local char = upperMsg:sub(i, i)
             translated = translated .. (alphabets[chosenLanguage][char] or char)
         end
+        lastTranslated = translated
         Chat(translated)
     end
 end)
