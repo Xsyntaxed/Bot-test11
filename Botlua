@@ -1,5 +1,12 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Create the RemoteEvent if it doesn't exist
+if not ReplicatedStorage:FindFirstChild("BotChatEvent") then
+    local event = Instance.new("RemoteEvent", ReplicatedStorage)
+    event.Name = "BotChatEvent"
+end
+
 local BotChatEvent = ReplicatedStorage:WaitForChild("BotChatEvent")
 
 local greetings = {
