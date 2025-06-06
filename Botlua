@@ -46,10 +46,10 @@ TextChatService.MessageReceived:Connect(function(messageObj)
 	if not sender or sender ~= player then return end
 
 	local text = messageObj.Text
-	if text == lastMessage then return end -- prevents double fire
+	if text == lastMessage then return end -- avoid duplicate fire
 	lastMessage = text
 
-	-- Language choice
+	-- Language selection
 	if not translationEnabled then
 		if text == "1" then
 			selectedLanguage = "Chinese"
@@ -79,7 +79,8 @@ TextChatService.MessageReceived:Connect(function(messageObj)
 		lastSendTime = tick()
 		local translated = translate(text)
 		if translated ~= text then
-			SayMessageRequest:FireServer(translated, "All")
+			local combinedMessage = "Original: " .. text .. " | Translated: " .. translated
+			SayMessageRequest:FireServer(combinedMessage, "All")
 		end
 	end
 end)
