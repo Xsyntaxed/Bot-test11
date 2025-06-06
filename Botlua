@@ -1,21 +1,10 @@
-local VERSION = "2.5.5"
-
 local players = game:GetService("Players")
 local localPlayer = players.LocalPlayer
 local replicatedStorage = game:GetService("ReplicatedStorage")
-local textChatService = game:GetService("TextChatService")
 local StarterGui = game:GetService("StarterGui")
+local textChatService = game:GetService("TextChatService")
 
-local selectedLanguage = nil
-local isSending = false
-
--- Chat sending function
-local oldChat
-if textChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-    oldChat = false
-else
-    oldChat = true
-end
+local oldChat = textChatService.ChatVersion ~= Enum.ChatVersion.TextChatService
 
 local function Chat(msg)
     if not oldChat then
@@ -25,77 +14,63 @@ local function Chat(msg)
     end
 end
 
--- Notify helper
-local function notify(title, text, duration)
-    StarterGui:SetCore("SendNotification", {
-        Title = title,
-        Text = text,
-        Duration = duration or 5
-    })
-end
-
--- Language letter map with vowel and consonant handling
+-- Language maps
 local alphabets = {
-    ["1"] = { -- Chinese (approx)
-        A = "啊", B = "贝", C = "西", D = "的", E = "诶", F = "艾弗", G = "吉",
-        H = "艾尺", I = "伊", J = "杰", K = "开", L = "艾勒", M = "艾姆", N = "艾娜",
-        O = "哦", P = "屁", Q = "苦", R = "艾儿", S = "艾丝", T = "提", U = "优",
-        V = "维", W = "豆贝尔维", X = "艾克斯", Y = "吾艾", Z = "贼德"
+    ["1"] = {
+        A = "啊", B = "吧", C = "吃", D = "的", E = "鹅", F = "发", G = "个", H = "和", I = "一", J = "鸡",
+        K = "可", L = "了", M = "么", N = "你", O = "哦", P = "怕", Q = "去", R = "人", S = "是", T = "他",
+        U = "乌", V = "维", W = "我", X = "西", Y = "呀", Z = "在", [" "] = " "
     },
-    ["2"] = { -- Russian (Cyrillic transliteration)
-        A = "А", B = "Б", C = "С", D = "Д", E = "Е", F = "Ф", G = "Г",
-        H = "Х", I = "И", J = "Й", K = "К", L = "Л", M = "М", N = "Н",
-        O = "О", P = "П", Q = "К", R = "Р", S = "С", T = "Т", U = "У",
-        V = "В", W = "В", X = "КС", Y = "Ы", Z = "З"
+    ["2"] = {
+        A = "А", B = "Б", C = "Ц", D = "Д", E = "Е", F = "Ф", G = "Г", H = "Х", I = "И", J = "Й",
+        K = "К", L = "Л", M = "М", N = "Н", O = "О", P = "П", Q = "К", R = "Р", S = "С", T = "Т",
+        U = "У", V = "В", W = "Ш", X = "Кс", Y = "Ы", Z = "З", [" "] = " "
     },
-    ["3"] = { -- Japanese Hiragana (simplified phonetics)
-        A = "あ", B = "ば", C = "し", D = "で", E = "え", F = "ふ", G = "ぐ",
-        H = "は", I = "い", J = "じ", K = "け", L = "る", M = "む", N = "ん",
-        O = "お", P = "ぴ", Q = "きゅ", R = "ら", S = "す", T = "て", U = "う",
-        V = "ゔ", W = "わ", X = "えっくす", Y = "や", Z = "ぜ"
+    ["3"] = {
+        A = "あ", B = "び", C = "こ", D = "で", E = "え", F = "ふ", G = "が", H = "は", I = "い", J = "じ",
+        K = "か", L = "ら", M = "ま", N = "な", O = "お", P = "ぴ", Q = "く", R = "り", S = "す", T = "と",
+        U = "う", V = "ゔ", W = "わ", X = "くす", Y = "ゆ", Z = "ず", [" "] = " "
     }
 }
 
--- Translate message based on letter map
-local function translateMessageLetters(msg, lang)
-    local map = alphabets[lang]
-    if not map then return msg end
+local chosenLanguage = nil
+local translatingEnabled = false
 
-    local result = {}
-    for i = 1, #msg do
-        local c = msg:sub(i,i)
-        local upper = c:upper()
-        if map[upper] then
-            table.insert(result, map[upper])
-        else
-            table.insert(result, c)
-        end
-    end
-    return table.concat(result)
-end
+-- Notification to user
+StarterGui:SetCore("SendNotification", {
+    Title = "Language Selection",
+    Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
+    Duration = 10
+})
 
--- Language picker prompt
-notify("Language Selection", "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese", 10)
-
--- On chat input
+-- Chat monitor
 localPlayer.Chatted:Connect(function(msg)
-    if isSending then
-        isSending = false
+    msg = msg:lower()
+
+    -- Detect language choice
+    if not translatingEnabled and (msg == "1" or msg == "2" or msg == "3") then
+        chosenLanguage = msg
+        translatingEnabled = true
+        StarterGui:SetCore("SendNotification", {
+            Title = "Language Selected",
+            Text = "You selected: " .. (msg == "1" and "Chinese" or msg == "2" and "Russian" or "Japanese"),
+            Duration = 5
+        })
         return
     end
 
-    if not selectedLanguage then
-        if msg == "1" or msg == "2" or msg == "3" then
-            selectedLanguage = msg
-            notify("Language Selected", "You chose option " .. selectedLanguage .. ".", 5)
-            isSending = true
-            Chat("You selected language option " .. selectedLanguage .. ". Your messages will now be translated.")
-        else
-            notify("Invalid Choice", "Type 1, 2, or 3 to choose language.", 5)
+    -- If translating is enabled, translate chat
+    if translatingEnabled and alphabets[chosenLanguage] then
+        local translated = ""
+        local upperMsg = msg:upper()
+        for i = 1, #upperMsg do
+            local char = upperMsg:sub(i, i)
+            translated = translated .. (alphabets[chosenLanguage][char] or char)
         end
-    else
-        local translated = translateMessageLetters(msg, selectedLanguage)
-        isSending = true
         Chat(translated)
     end
 end)
+
+-- Show helper message in chat
+task.wait(1)
+Chat("Hi! Type 1 (Chinese), 2 (Russian), or 3 (Japanese) in chat to choose your language.")
