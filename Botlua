@@ -1,4 +1,3 @@
--- Roblox multilingual chat translator bot with language selection
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,112 +11,429 @@ local translationEnabled = false
 local lastMessage = ""
 local cooldown = 2
 local lastSendTime = 0
+local languageNotified = false
 
-local vowels = {
-    Tagalog = "aeiou",
-    German = "aeiouäöü",
-    Chinese = "aeiou",
-    Russian = "аеёиоуыэюя",
-    Japanese = "あいうえお",
-    Thai = "อะอิอุเอโอ",
-    Vietnamese = "aeiouâăêôơư"
+local function notify(title, text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 4
+        })
+    end)
+end
+
+-- Dictionaries with 100 words each
+local dictionaries = {}
+
+dictionaries["Tagalog"] = {
+    ["hello"] = "kamusta", ["yes"] = "oo", ["no"] = "hindi", ["thank"] = "salamat", ["please"] = "pakiusap",
+    ["sorry"] = "paumanhin", ["goodbye"] = "paalam", ["morning"] = "umaga", ["night"] = "gabi", ["love"] = "pag-ibig",
+    ["friend"] = "kaibigan", ["water"] = "tubig", ["food"] = "pagkain", ["house"] = "bahay", ["car"] = "kotse",
+    ["book"] = "libro", ["cat"] = "pusa", ["dog"] = "aso", ["sun"] = "araw", ["moon"] = "buwan",
+    ["happy"] = "masaya", ["sad"] = "malungkot", ["big"] = "malaki", ["small"] = "maliit", ["hot"] = "mainit",
+    ["cold"] = "malamig", ["eat"] = "kain", ["drink"] = "inom", ["go"] = "pumunta", ["come"] = "halika",
+    ["run"] = "tumakbo", ["walk"] = "lakad", ["sit"] = "umupo", ["stand"] = "tumayo", ["read"] = "basa",
+    ["write"] = "sulat", ["see"] = "tingin", ["hear"] = "dinig", ["speak"] = "salita", ["sleep"] = "tulog",
+    ["buy"] = "bili", ["sell"] = "benta", ["open"] = "bukas", ["close"] = "sara", ["good"] = "mabuti",
+    ["bad"] = "masama", ["new"] = "bago", ["old"] = "luma", ["clean"] = "malinis", ["dirty"] = "marumi",
+    ["strong"] = "malakas", ["weak"] = "mahina", ["light"] = "ilaw", ["dark"] = "madilim", ["enemy"] = "kaaway",
+    ["help"] = "tulong", ["stop"] = "hinto", ["hate"] = "galit", ["peace"] = "kapayapaan", ["war"] = "digmaan",
+    ["long"] = "haba", ["short"] = "ikli", ["fast"] = "mabilis", ["slow"] = "mabagal", ["happy"] = "masaya",
+    ["sad"] = "malungkot", ["clean"] = "malinis", ["dirty"] = "marumi", ["strong"] = "malakas", ["weak"] = "mahina",
+    ["light"] = "ilaw", ["dark"] = "madilim", ["work"] = "trabaho", ["play"] = "laro", ["school"] = "paaralan",
+    ["family"] = "pamilya", ["child"] = "bata", ["mother"] = "ina", ["father"] = "ama", ["friend"] = "kaibigan",
+    ["music"] = "musika", ["dance"] = "sayaw", ["money"] = "pera", ["market"] = "palengke", ["road"] = "daan",
+    ["tree"] = "puno", ["flower"] = "bulaklak", ["sky"] = "langit", ["earth"] = "lupa", ["fire"] = "apoy"
 }
 
-local alphabet = {
-    Tagalog = "abcdefghijklmnopqrstuvwxyz",
-    German = "abcdefghijklmnopqrstuvwxyzäöüß",
-    Chinese = "abcdefghijklmnopqrstuvwxyz",
-    Russian = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
-    Japanese = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん",
-    Thai = "กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลฦวศษสหฬอฮ",
-    Vietnamese = "abcdefghijklmnopqrstuvwxyzăâđêôơư"
+alphabetMap = alphabetMap or {}
+alphabetMap["Tagalog"] = {
+    a = "a", b = "b", c = "k", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "h",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "k", r = "r", s = "s", t = "t",
+    u = "u", v = "b", w = "w", x = "ks", y = "y", z = "s"
 }
 
-local dictionaries = {
-    Tagalog = {
-        hello = "kamusta", hi = "hi", bye = "paalam", yes = "oo", no = "hindi",
-        thank = "salamat", you = "ikaw", i = "ako", we = "kami", they = "sila",
-        he = "siya", she = "siya", it = "ito", good = "mabuti", bad = "masama",
-        morning = "umaga", night = "gabi", day = "araw", water = "tubig", food = "pagkain",
-        house = "bahay", love = "pag-ibig", happy = "masaya", sad = "malungkot", come = "halika",
-        go = "umalis", see = "tingnan", want = "gusto", know = "alam", help = "tulong",
-        friend = "kaibigan", family = "pamilya", work = "trabaho", school = "paaralan", money = "pera",
-        car = "kotse", run = "tumakbo", walk = "lakad", big = "malaki", small = "maliit",
-        new = "bago", old = "luma", please = "pakiusap", sorry = "pasensya", what = "ano",
-        who = "sino"
-    },
-    German = {
-        hello = "hallo", hi = "hi", bye = "tschüss", yes = "ja", no = "nein",
-        thank = "danke", you = "du", i = "ich", we = "wir", they = "sie",
-        he = "er", she = "sie", it = "es", good = "gut", bad = "schlecht",
-        morning = "morgen", night = "nacht", day = "tag", water = "wasser", food = "essen",
-        house = "haus", love = "liebe", happy = "glücklich", sad = "traurig", come = "kommen",
-        go = "gehen", see = "sehen", want = "wollen", know = "wissen", help = "hilfe",
-        friend = "freund", family = "familie", work = "arbeit", school = "schule", money = "geld",
-        car = "auto", run = "laufen", walk = "gehen", big = "groß", small = "klein",
-        new = "neu", old = "alt", please = "bitte", sorry = "entschuldigung", what = "was",
-        who = "wer"
-    }, 
-    Chinese = {
-        hello = "你好", hi = "嗨", bye = "再见", yes = "是", no = "不",
-        thank = "谢谢", you = "你", i = "我", we = "我们", they = "他们",
-        he = "他", she = "她", it = "它", good = "好", bad = "坏",
-        morning = "早上", night = "晚上", day = "天", water = "水", food = "食物",
-        house = "房子", love = "爱", happy = "高兴", sad = "难过", come = "来",
-        go = "去", see = "看", want = "想要", know = "知道", help = "帮助",
-        friend = "朋友", family = "家人", work = "工作", school = "学校", money = "钱",
-        car = "车", run = "跑", walk = "走", big = "大", small = "小",
-        new = "新", old = "旧", please = "请", sorry = "对不起", what = "什么",
-        who = "谁"
-    },
-    Russian = {
-        hello = "привет", hi = "привет", bye = "пока", yes = "да", no = "нет",
-        thank = "спасибо", you = "ты", i = "я", we = "мы", they = "они",
-        he = "он", she = "она", it = "оно", good = "хорошо", bad = "плохо",
-        morning = "утро", night = "ночь", day = "день", water = "вода", food = "еда",
-        house = "дом", love = "любовь", happy = "счастливый", sad = "грустный", come = "приходить",
-        go = "идти", see = "видеть", want = "хотеть", know = "знать", help = "помощь",
-        friend = "друг", family = "семья", work = "работа", school = "школа", money = "деньги",
-        car = "машина", run = "бежать", walk = "ходить", big = "большой", small = "маленький",
-        new = "новый", old = "старый", please = "пожалуйста", sorry = "извините", what = "что",
-        who = "кто"
-    }, 
-    Japanese = {
-        hello = "こんにちは", hi = "やあ", bye = "さようなら", yes = "はい", no = "いいえ",
-        thank = "ありがとう", you = "あなた", i = "私", we = "私たち", they = "彼ら",
-        he = "彼", she = "彼女", it = "それ", good = "良い", bad = "悪い",
-        morning = "朝", night = "夜", day = "日", water = "水", food = "食べ物",
-        house = "家", love = "愛", happy = "幸せ", sad = "悲しい", come = "来る",
-        go = "行く", see = "見る", want = "欲しい", know = "知る", help = "助ける",
-        friend = "友達", family = "家族", work = "仕事", school = "学校", money = "お金",
-        car = "車", run = "走る", walk = "歩く", big = "大きい", small = "小さい",
-        new = "新しい", old = "古い", please = "お願いします", sorry = "ごめんなさい", what = "何",
-        who = "誰"
-    },
-    Thai = {
-        hello = "สวัสดี", hi = "หวัดดี", bye = "ลาก่อน", yes = "ใช่", no = "ไม่",
-        thank = "ขอบคุณ", you = "คุณ", i = "ฉัน", we = "เรา", they = "พวกเขา",
-        he = "เขา", she = "เธอ", it = "มัน", good = "ดี", bad = "ไม่ดี",
-        morning = "เช้า", night = "คืน", day = "วัน", water = "น้ำ", food = "อาหาร",
-        house = "บ้าน", love = "รัก", happy = "มีความสุข", sad = "เศร้า", come = "มา",
-        go = "ไป", see = "เห็น", want = "ต้องการ", know = "รู้", help = "ช่วย",
-        friend = "เพื่อน", family = "ครอบครัว", work = "งาน", school = "โรงเรียน", money = "เงิน",
-        car = "รถ", run = "วิ่ง", walk = "เดิน", big = "ใหญ่", small = "เล็ก",
-        new = "ใหม่", old = "เก่า", please = "กรุณา", sorry = "ขอโทษ", what = "อะไร",
-        who = "ใคร"
-    },
-    Vietnamese = {
-        hello = "xin chào", hi = "chào", bye = "tạm biệt", yes = "vâng", no = "không",
-        thank = "cảm ơn", you = "bạn", i = "tôi", we = "chúng tôi", they = "họ",
-        he = "anh ấy", she = "cô ấy", it = "nó", good = "tốt", bad = "xấu",
-        morning = "buổi sáng", night = "buổi tối", day = "ngày", water = "nước", food = "thức ăn",
-        house = "nhà", love = "yêu", happy = "vui", sad = "buồn", come = "đến",
-        go = "đi", see = "thấy", want = "muốn", know = "biết", help = "giúp",
-        friend = "bạn bè", family = "gia đình", work = "công việc", school = "trường học", money = "tiền",
-        car = "xe hơi", run = "chạy", walk = "đi bộ", big = "to", small = "nhỏ",
-        new = "mới", old = "cũ", please = "làm ơn", sorry = "xin lỗi", what = "gì",
-        who = "ai"
-    }
+vowels = vowels or {}
+vowels["Tagalog"] = { "a", "e", "i", "o", "u" }
+
+
+dictionaries["German"] = {
+    ["hello"] = "hallo", ["yes"] = "ja", ["no"] = "nein", ["thank"] = "danke", ["please"] = "bitte",
+    ["sorry"] = "entschuldigung", ["goodbye"] = "auf wiedersehen", ["morning"] = "morgen", ["night"] = "nacht", ["love"] = "liebe",
+    ["friend"] = "freund", ["water"] = "wasser", ["food"] = "essen", ["house"] = "haus", ["car"] = "auto",
+    ["book"] = "buch", ["cat"] = "katze", ["dog"] = "hund", ["sun"] = "sonne", ["moon"] = "mond",
+    ["happy"] = "glücklich", ["sad"] = "traurig", ["big"] = "groß", ["small"] = "klein", ["hot"] = "heiß",
+    ["cold"] = "kalt", ["eat"] = "essen", ["drink"] = "trinken", ["go"] = "gehen", ["come"] = "kommen",
+    ["run"] = "laufen", ["walk"] = "gehen", ["sit"] = "sitzen", ["stand"] = "stehen", ["read"] = "lesen",
+    ["write"] = "schreiben", ["see"] = "sehen", ["hear"] = "hören", ["speak"] = "sprechen", ["sleep"] = "schlafen",
+    ["buy"] = "kaufen", ["sell"] = "verkaufen", ["open"] = "öffnen", ["close"] = "schließen", ["good"] = "gut",
+    ["bad"] = "schlecht", ["new"] = "neu", ["old"] = "alt", ["clean"] = "sauber", ["dirty"] = "schmutzig",
+    ["strong"] = "stark", ["weak"] = "schwach", ["light"] = "licht", ["dark"] = "dunkel", ["enemy"] = "feind",
+    ["help"] = "helfen", ["stop"] = "stopp", ["hate"] = "hassen", ["peace"] = "frieden", ["war"] = "krieg",
+    ["long"] = "lang", ["short"] = "kurz", ["fast"] = "schnell", ["slow"] = "langsam", ["happy"] = "glücklich",
+    ["sad"] = "traurig", ["clean"] = "sauber", ["dirty"] = "schmutzig", ["strong"] = "stark", ["weak"] = "schwach",
+    ["light"] = "licht", ["dark"] = "dunkel", ["work"] = "arbeiten", ["play"] = "spielen", ["school"] = "schule",
+    ["family"] = "familie", ["child"] = "kind", ["mother"] = "mutter", ["father"] = "vater", ["friend"] = "freund",
+    ["music"] = "musik", ["dance"] = "tanz", ["money"] = "geld", ["market"] = "markt", ["road"] = "straße",
+    ["tree"] = "baum", ["flower"] = "blume", ["sky"] = "himmel", ["earth"] = "erde", ["fire"] = "feuer"
+}
+
+alphabetMap["German"] = {
+    a = "a", b = "b", c = "k", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "k", r = "r", s = "s", t = "t",
+    u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["German"] = { "a", "e", "i", "o", "u" }
+
+
+dictionaries["Chinese"] = {
+    ["hello"] = "你好", ["yes"] = "是", ["no"] = "不是", ["thank"] = "谢谢", ["please"] = "请",
+    ["sorry"] = "对不起", ["goodbye"] = "再见", ["morning"] = "早上", ["night"] = "晚上", ["love"] = "爱",
+    ["friend"] = "朋友", ["water"] = "水", ["food"] = "食物", ["house"] = "房子", ["car"] = "汽车",
+    ["book"] = "书", ["cat"] = "猫", ["dog"] = "狗", ["sun"] = "太阳", ["moon"] = "月亮",
+    ["happy"] = "高兴", ["sad"] = "伤心", ["big"] = "大", ["small"] = "小", ["hot"] = "热",
+    ["cold"] = "冷", ["eat"] = "吃", ["drink"] = "喝", ["go"] = "去", ["come"] = "来",
+    ["run"] = "跑", ["walk"] = "走", ["sit"] = "坐", ["stand"] = "站", ["read"] = "读",
+    ["write"] = "写", ["see"] = "看", ["hear"] = "听", ["speak"] = "说", ["sleep"] = "睡觉",
+    ["buy"] = "买", ["sell"] = "卖", ["open"] = "打开", ["close"] = "关闭", ["good"] = "好",
+    ["bad"] = "坏", ["new"] = "新", ["old"] = "旧", ["clean"] = "干净", ["dirty"] = "脏",
+    ["strong"] = "强壮", ["weak"] = "虚弱", ["light"] = "光", ["dark"] = "暗", ["enemy"] = "敌人",
+    ["help"] = "帮助", ["stop"] = "停止", ["hate"] = "恨", ["peace"] = "和平", ["war"] = "战争", ["long"] = "长", ["short"] = "短", ["fast"] = "快",
+    ["slow"] = "慢", ["work"] = "工作", ["play"] = "玩", ["school"] = "学校", ["family"] = "家庭",
+    ["child"] = "孩子", ["mother"] = "母亲", ["father"] = "父亲", ["music"] = "音乐", ["dance"] = "跳舞",
+    ["money"] = "钱", ["market"] = "市场", ["road"] = "路", ["tree"] = "树", ["flower"] = "花",
+    ["sky"] = "天空", ["earth"] = "地球", ["fire"] = "火"
+}
+
+alphabetMap["Chinese"] = {
+    a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "q", r = "r", s = "s", t = "t",
+    u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["Chinese"] = { "a", "e", "i", "o", "u" }
+
+-- Russian dictionary and mappings
+dictionaries["Russian"] = {
+    ["hello"] = "привет", ["thank"] = "спасибо", ["yes"] = "да", ["no"] = "нет", ["please"] = "пожалуйста",
+    ["sorry"] = "извините", ["love"] = "любовь", ["friend"] = "друг", ["food"] = "еда", ["water"] = "вода",
+    ["house"] = "дом", ["car"] = "машина", ["book"] = "книга", ["computer"] = "компьютер", ["phone"] = "телефон",
+    ["cat"] = "кот", ["dog"] = "собака", ["sun"] = "солнце", ["moon"] = "луна", ["star"] = "звезда",
+    ["happy"] = "счастливый", ["sad"] = "грустный", ["run"] = "бежать", ["walk"] = "ходить", ["sleep"] = "спать",
+    ["work"] = "работа", ["play"] = "играть", ["school"] = "школа", ["family"] = "семья", ["child"] = "ребенок",
+    ["mother"] = "мать", ["father"] = "отец", ["music"] = "музыка", ["dance"] = "танец", ["money"] = "деньги",
+    ["market"] = "рынок", ["road"] = "дорога", ["tree"] = "дерево", ["flower"] = "цветок", ["sky"] = "небо",
+    ["earth"] = "земля", ["fire"] = "огонь", ["peace"] = "мир", ["war"] = "война", ["long"] = "длинный",
+    ["short"] = "короткий", ["fast"] = "быстрый", ["slow"] = "медленный", ["waterfall"] = "водопад", ["river"] = "река",
+    ["mountain"] = "гора", ["sea"] = "море", ["rain"] = "дождь", ["snow"] = "снег", ["wind"] = "ветер",
+    ["cloud"] = "облако", ["treehouse"] = "дом на дереве", ["island"] = "остров", ["forest"] = "лес", ["desert"] = "пустыня",
+    ["friendship"] = "дружба", ["hope"] = "надежда", ["dream"] = "мечта", ["truth"] = "правда", ["faith"] = "вера",
+    ["freedom"] = "свобода", ["joy"] = "радость", ["strength"] = "сила", ["honor"] = "честь", ["brave"] = "смелый",
+    ["light"] = "свет", ["dark"] = "темный", ["cold"] = "холодный", ["hot"] = "горячий", ["sweet"] = "сладкий",
+    ["bitter"] = "горький", ["clean"] = "чистый", ["dirty"] = "грязный"
+}
+
+alphabetMap["Russian"] = {
+    a = "а", b = "б", c = "ц", d = "д", e = "е", f = "ф", g = "г", h = "х", i = "и", j = "й",
+    k = "к", l = "л", m = "м", n = "н", o = "о", p = "п", q = "қ", r = "р", s = "с", t = "т",
+    u = "у", v = "в", w = "ш", x = "кс", y = "ы", z = "з"
+}
+
+vowels["Russian"] = { "а", "е", "и", "о", "у", "ы", "э", "ю", "я" }
+
+-- Japanese dictionary and mappings
+dictionaries["Japanese"] = {
+    ["hello"] = "こんにちは", ["thank"] = "ありがとう", ["yes"] = "はい", ["no"] = "いいえ", ["please"] = "お願いします",
+    ["sorry"] = "ごめんなさい", ["love"] = "愛", ["friend"] = "友達", ["food"] = "食べ物", ["water"] = "水",
+    ["house"] = "家", ["car"] = "車", ["book"] = "本", ["computer"] = "コンピューター", ["phone"] = "電話",
+    ["cat"] = "猫", ["dog"] = "犬", ["sun"] = "太陽", ["moon"] = "月", ["star"] = "星",
+    ["happy"] = "幸せ", ["sad"] = "悲しい", ["run"] = "走る", ["walk"] = "歩く", ["sleep"] = "寝る",
+    ["work"] = "仕事", ["play"] = "遊ぶ", ["school"] = "学校", ["family"] = "家族", ["child"] = "子供",
+    ["mother"] = "母", ["father"] = "父", ["music"] = "音楽", ["dance"] = "踊る", ["money"] = "お金",
+    ["market"] = "市場", ["road"] = "道", ["tree"] = "木", ["flower"] = "花", ["sky"] = "空",
+    ["earth"] = "地球", ["fire"] = "火", ["peace"] = "平和", ["war"] = "戦争", ["long"] = "長い",
+    ["short"] = "短い", ["fast"] = "速い", ["slow"] = "遅い", ["waterfall"] = "滝", ["river"] = "川",
+    ["mountain"] = "山", ["sea"] = "海", ["rain"] = "雨", ["snow"] = "雪", ["wind"] = "風",
+    ["cloud"] = "雲", ["treehouse"] = "ツリーハウス", ["island"] = "島", ["forest"] = "森", ["desert"] = "砂漠",
+    ["friendship"] = "友情", ["hope"] = "希望", ["dream"] = "夢", ["truth"] = "真実", ["faith"] = "信仰",
+    ["freedom"] = "自由", ["joy"] = "喜び", ["strength"] = "強さ", ["honor"] = "名誉", ["brave"] = "勇敢",
+    ["light"] = "光", ["dark"] = "暗い", ["cold"] = "寒い", ["hot"] = "暑い", ["sweet"] = "甘い",
+    ["bitter"] = "苦い", ["clean"] = "きれい", ["dirty"] = "汚い"
+}
+
+alphabetMap["Japanese"] = {
+    a = "あ", b = "べ", c = "く", d = "で", e = "え", f = "ふ", g = "ぐ", h = "は", i = "い", j = "じ",
+    k = "か", l = "る", m = "ま", n = "ん", o = "お", p = "ぷ", q = "く", r = "ら", s = "す", t = "と",
+    u = "う", v = "ゔ", w = "わ", x = "くす", y = "や", z = "ず"
+}
+
+vowels["Japanese"] = { "あ", "い", "う", "え", "お" }
+
+-- Thai dictionary and mappings
+dictionaries["Thai"] = {
+    ["hello"] = "สวัสดี", ["thank"] = "ขอบคุณ", ["yes"] = "ใช่", ["no"] = "ไม่", ["please"] = "กรุณา",
+    ["sorry"] = "ขอโทษ", ["love"] = "รัก", ["friend"] = "เพื่อน", ["food"] = "อาหาร", ["water"] = "น้ำ",
+    ["house"] = "บ้าน", ["car"] = "รถ", ["book"] = "หนังสือ", ["computer"] = "คอมพิวเตอร์", ["phone"] = "โทรศัพท์",
+    ["cat"] = "แมว", ["dog"] = "สุนัข", ["sun"] = "พระอาทิตย์", ["moon"] = "พระจันทร์", ["star"] = "ดาว",
+    ["happy"] = "มีความสุข", ["sad"] = "เศร้า", ["run"] = "วิ่ง", ["walk"] = "เดิน", ["sleep"] = "นอน",
+    ["work"] = "ทำงาน", ["play"] = "เล่น", ["school"] = "โรงเรียน", ["family"] = "ครอบครัว", ["child"] = "เด็ก",
+    ["mother"] = "แม่", ["father"] = "พ่อ", ["music"] = "ดนตรี", ["dance"] = "เต้นรำ", ["money"] = "เงิน",
+    ["market"] = "ตลาด", ["road"] = "ถนน", ["tree"] = "ต้นไม้", ["flower"] = "ดอกไม้", ["sky"] = "ท้องฟ้า",
+    ["earth"] = "โลก", ["fire"] = "ไฟ", ["peace"] = "สันติภาพ", ["war"] = "สงคราม", ["long"] = "ยาว",
+    ["short"] = "สั้น", ["fast"] = "เร็ว", ["slow"] = "ช้า", ["waterfall"] = "น้ำตก", ["river"] = "แม่น้ำ",
+    ["mountain"] = "ภูเขา", ["sea"] = "ทะเล", ["rain"] = "ฝน", ["snow"] = "หิมะ", ["wind"] = "ลม",
+    ["cloud"] = "เมฆ", ["treehouse"] = "บ้านต้นไม้", ["island"] = "เกาะ", ["forest"] = "ป่า", ["desert"] = "ทะเลทราย",
+    ["friendship"] = "มิตรภาพ", ["hope"] = "หวัง", ["dream"] = "ความฝัน", ["truth"] = "ความจริง", ["faith"] = "ศรัทธา",
+    ["freedom"] = "เสรีภาพ", ["joy"] = "ความสุข", ["strength"] = "ความแข็งแรง", ["honor"] = "เกียรติยศ", ["brave"] = "กล้าหาญ",
+    ["light"] = "แสง", ["dark"] = "ความมืด", ["cold"] = "หนาว", ["hot"] = "ร้อน", ["sweet"] = "หวาน",
+    ["bitter"] = "ขม", ["clean"] = "สะอาด", ["dirty"] = "สกปรก"
+}
+
+alphabetMap["Thai"] = {
+    a = "ก", b = "ข", c = "ค", d = "ด", e = "เ", f = "ฟ", g = "ก", h = "ห", i = "อิ", j = "จ",
+    k = "ก", l = "ล", m = "ม", n = "น", o = "โอ", p = "พ", q = "ค", r = "ร", s = "ส", t = "ต",
+    u = "อุ", v = "ว", w = "ว", x = "ซ", y = "ย", z = "ซ"
+}
+
+vowels["Thai"] = { "า", "ิ", "ี", "ุ", "ู", "เ", "แ", "โ", "ใ", "ไ" }
+
+-- Vietnamese dictionary and mappings
+dictionaries["Vietnamese"] = {
+    ["hello"] = "xin chào", ["thank"] = "cảm ơn", ["yes"] = "vâng", ["no"] = "không", ["please"] = "làm ơn",
+    ["sorry"] = "xin lỗi", ["love"] = "yêu", ["friend"] = "bạn bè", ["food"] = "thức ăn", ["water"] = "nước",
+    ["house"] = "nhà", ["car"] = "xe hơi", ["book"] = "sách", ["computer"] = "máy tính", ["phone"] = "điện thoại",
+    ["cat"] = "con mèo", ["dog"] = "con chó", ["sun"] = "mặt trời", ["moon"] = "mặt trăng", ["star"] = "ngôi sao",
+    ["happy"] = "vui", ["sad"] = "buồn", ["run"] = "chạy", ["walk"] = "đi bộ", ["sleep"] = "ngủ",
+    ["work"] = "làm việc", ["play"] = "chơi", ["school"] = "trường học", ["family"] = "gia đình", ["child"] = "đứa trẻ",
+    ["mother"] = "mẹ", ["father"] = "cha", ["music"] = "âm nhạc", ["dance"] = "nhảy múa", ["money"] = "tiền",
+    ["market"] = "chợ", ["road"] = "đường", ["tree"] = "cây", ["flower"] = "hoa", ["sky"] = "bầu trời",
+    ["earth"] = "trái đất", ["fire"] = "lửa", ["peace"] = "hòa bình", ["war"] = "chiến tranh", ["long"] = "dài",
+    ["short"] = "ngắn", ["fast"] = "nhanh", ["slow"] = "chậm", ["waterfall"] = "thác nước", ["river"] = "dòng sông",
+    ["mountain"] = "núi", ["sea"] = "biển", ["rain"] = "mưa", ["snow"] = "tuyết", ["wind"] = "gió",
+    ["cloud"] = "mây", ["treehouse"] = "nhà cây", ["island"] = "đảo", ["forest"] = "rừng", ["desert"] = "sa mạc",
+    ["friendship"] = "tình bạn", ["hope"] = "hy vọng", ["dream"] = "giấc mơ", ["truth"] = "sự thật", ["faith"] = "đức tin",
+    ["freedom"] = "tự do", ["joy"] = "niềm vui", ["strength"] = "sức mạnh", ["honor"] = "vinh dự", ["brave"] = "dũng cảm",
+    ["light"] = "ánh sáng", ["dark"] = "bóng tối", ["cold"] = "lạnh", ["hot"] = "nóng", ["sweet"] = "ngọt",
+    ["bitter"] = "đắng", ["clean"] = "sạch", ["dirty"] = "bẩn"
+}
+
+alphabetMap["Vietnamese"] = {
+    a = "a", b = "b", c = "c", d = "d", đ = "đ", e = "e", f = "f", g = "g", h = "h", i = "i",
+    j = "j", k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "q", r = "r", s = "s",
+    t = "t", u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["Vietnamese"] = { "a", "ă", "â", "e", "ê", "i", "o", "ô", "ơ", "u", "ư", "y" }
+
+-- Spanish dictionary and mappings
+dictionaries["Spanish"] = {
+    ["hello"] = "hola", ["thank"] = "gracias", ["yes"] = "sí", ["no"] = "no", ["please"] = "por favor",
+    ["sorry"] = "lo siento", ["love"] = "amor", ["friend"] = "amigo", ["food"] = "comida", ["water"] = "agua",
+    ["house"] = "casa", ["car"] = "coche", ["book"] = "libro", ["computer"] = "computadora", ["phone"] = "teléfono",
+    ["cat"] = "gato", ["dog"] = "perro", ["sun"] = "sol", ["moon"] = "luna", ["star"] = "estrella",
+    ["happy"] = "feliz", ["sad"] = "triste", ["run"] = "correr", ["walk"] = "caminar", ["sleep"] = "dormir",
+    ["work"] = "trabajar", ["play"] = "jugar", ["school"] = "escuela", ["family"] = "familia", ["child"] = "niño",
+    ["mother"] = "madre", ["father"] = "padre", ["music"] = "música", ["dance"] = "bailar", ["money"] = "dinero",
+    ["market"] = "mercado", ["road"] = "carretera", ["tree"] = "árbol", ["flower"] = "flor", ["sky"] = "cielo",
+    ["earth"] = "tierra", ["fire"] = "fuego", ["peace"] = "paz", ["war"] = "guerra", ["long"] = "largo",
+    ["short"] = "corto", ["fast"] = "rápido", ["slow"] = "lento", ["waterfall"] = "cascada", ["river"] = "río",
+    ["mountain"] = "montaña", ["sea"] = "mar", ["rain"] = "lluvia", ["snow"] = "nieve", ["wind"] = "viento",
+    ["cloud"] = "nube", ["treehouse"] = "casa del árbol", ["island"] = "isla", ["forest"] = "bosque", ["desert"] = "desierto",
+    ["friendship"] = "amistad", ["hope"] = "esperanza", ["dream"] = "sueño", ["truth"] = "verdad", ["faith"] = "fe",
+    ["freedom"] = "libertad", ["joy"] = "alegría", ["strength"] = "fuerza", ["honor"] = "honor", ["brave"] = "valiente",
+    ["light"] = "luz", ["dark"] = "oscuro", ["cold"] = "frío", ["hot"] = "caliente", ["sweet"] = "dulce",
+    ["bitter"] = "amargo", ["clean"] = "limpio", ["dirty"] = "sucio"
+}
+
+alphabetMap["Spanish"] = {
+    a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", ñ = "ñ", o = "o", p = "p", q = "q", r = "r", s = "s",
+    t = "t", u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["Spanish"] = { "a", "e", "i", "o", "u", "á", "é", "í", "ó", "ú", "ü" }
+
+-- French dictionary and mappings
+dictionaries["French"] = {
+    ["hello"] = "bonjour", ["thank"] = "merci", ["yes"] = "oui", ["no"] = "non", ["please"] = "s'il vous plaît",
+    ["sorry"] = "désolé", ["love"] = "amour", ["friend"] = "ami", ["food"] = "nourriture", ["water"] = "eau",
+    ["house"] = "maison", ["car"] = "voiture", ["book"] = "livre", ["computer"] = "ordinateur", ["phone"] = "téléphone",
+    ["cat"] = "chat", ["dog"] = "chien", ["sun"] = "soleil", ["moon"] = "lune", ["star"] = "étoile",
+    ["happy"] = "heureux", ["sad"] = "triste", ["run"] = "courir", ["walk"] = "marcher", ["sleep"] = "dormir",
+    ["work"] = "travailler", ["play"] = "jouer", ["school"] = "école", ["family"] = "famille", ["child"] = "enfant",
+    ["mother"] = "mère", ["father"] = "père", ["music"] = "musique", ["dance"] = "danser", ["money"] = "argent",
+    ["market"] = "marché", ["road"] = "route", ["tree"] = "arbre", ["flower"] = "fleur", ["sky"] = "ciel",
+    ["earth"] = "terre", ["fire"] = "feu", ["peace"] = "paix", ["war"] = "guerre", ["long"] = "long",
+    ["short"] = "court", ["fast"] = "rapide", ["slow"] = "lent", ["waterfall"] = "cascade", ["river"] = "rivière",
+    ["mountain"] = "montagne", ["sea"] = "mer", ["rain"] = "pluie", ["snow"] = "neige", ["wind"] = "vent",
+    ["cloud"] = "nuage", ["treehouse"] = "cabane dans les arbres", ["island"] = "île", ["forest"] = "forêt", ["desert"] = "désert",
+    ["friendship"] = "amitié", ["hope"] = "espoir", ["dream"] = "rêve", ["truth"] = "vérité", ["faith"] = "foi",
+    ["freedom"] = "liberté", ["joy"] = "joie", ["strength"] = "force", ["honor"] = "honneur", ["brave"] = "courageux",
+    ["light"] = "lumière", ["dark"] = "sombre", ["cold"] = "froid", ["hot"] = "chaud", ["sweet"] = "doux",
+    ["bitter"] = "amer", ["clean"] = "propre", ["dirty"] = "sale"
+}
+
+alphabetMap["French"] = {
+    a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "q", r = "r", s = "s", t = "t",
+    u = "u", v = "v", w = "w", x = "x", y = "y", z = "z", ç = "ç", é = "é", è = "è", ê = "ê", ë = "ë",
+    à = "à", â = "â", ù = "ù", û = "û", ï = "ï", î = "î"
+}
+
+vowels["French"] = { "a", "e", "i", "o", "u", "à", "â", "æ", "é", "è", "ê", "ë", "î", "ï", "ô", "œ", "ù", "û", "ü", "ÿ" }
+
+-- Italian dictionary and mappings
+dictionaries["Italian"] = {
+    ["hello"] = "ciao", ["thank"] = "grazie", ["yes"] = "sì", ["no"] = "no", ["please"] = "per favore",
+    ["sorry"] = "scusa", ["love"] = "amore", ["friend"] = "amico", ["food"] = "cibo", ["water"] = "acqua",
+    ["house"] = "casa", ["car"] = "auto", ["book"] = "libro", ["computer"] = "computer", ["phone"] = "telefono",
+    ["cat"] = "gatto", ["dog"] = "cane", ["sun"] = "sole", ["moon"] = "luna", ["star"] = "stella",
+    ["happy"] = "felice", ["sad"] = "triste", ["run"] = "correre", ["walk"] = "camminare", ["sleep"] = "dormire",
+    ["work"] = "lavorare", ["play"] = "giocare", ["school"] = "scuola", ["family"] = "famiglia", ["child"] = "bambino",
+    ["mother"] = "madre", ["father"] = "padre", ["music"] = "musica", ["dance"] = "ballare", ["money"] = "denaro",
+    ["market"] = "mercato", ["road"] = "strada", ["tree"] = "albero", ["flower"] = "fiore", ["sky"] = "cielo",
+    ["earth"] = "terra", ["fire"] = "fuoco", ["peace"] = "pace", ["war"] = "guerra", ["long"] = "lungo",
+    ["short"] = "corto", ["fast"] = "veloce", ["slow"] = "lento", ["waterfall"] = "cascata", ["river"] = "fiume",
+    ["mountain"] = "montagna", ["sea"] = "mare", ["rain"] = "pioggia", ["snow"] = "neve", ["wind"] = "vento",
+    ["cloud"] = "nuvola", ["treehouse"] = "casa sull'albero", ["island"] = "isola", ["forest"] = "foresta", ["desert"] = "deserto",
+    ["friendship"] = "amicizia", ["hope"] = "speranza", ["dream"] = "sogno", ["truth"] = "verità", ["faith"] = "fede",
+    ["freedom"] = "libertà", ["joy"] = "gioia", ["strength"] = "forza", ["honor"] = "onore", ["brave"] = "coraggioso",
+    ["light"] = "luce", ["dark"] = "scuro", ["cold"] = "freddo", ["hot"] = "caldo", ["sweet"] = "dolce",
+    ["bitter"] = "amaro", ["clean"] = "pulito", ["dirty"] = "sporco"
+}
+
+alphabetMap["Italian"] = {
+    a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "q", r = "r", s = "s", t = "t",
+    u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["Italian"] = { "a", "e", "i", "o", "u", "à", "è", "é", "ì", "ò", "ù" }
+
+-- Korean dictionary and mappings
+dictionaries["Korean"] = {
+    ["hello"] = "안녕하세요", ["thank"] = "감사합니다", ["yes"] = "예", ["no"] = "아니요", ["please"] = "제발",
+    ["sorry"] = "미안합니다", ["love"] = "사랑", ["friend"] = "친구", ["food"] = "음식", ["water"] = "물",
+    ["house"] = "집", ["car"] = "차", ["book"] = "책", ["computer"] = "컴퓨터", ["phone"] = "전화기",
+    ["cat"] = "고양이", ["dog"] = "개", ["sun"] = "태양", ["moon"] = "달", ["star"] = "별",
+    ["happy"] = "행복한", ["sad"] = "슬픈", ["run"] = "달리다", ["walk"] = "걷다", ["sleep"] = "자다",
+    ["work"] = "일하다", ["play"] = "놀다", ["school"] = "학교", ["family"] = "가족", ["child"] = "아이",
+    ["mother"] = "어머니", ["father"] = "아버지", ["music"] = "음악", ["dance"] = "춤", ["money"] = "돈",
+    ["market"] = "시장", ["road"] = "도로", ["tree"] = "나무", ["flower"] = "꽃", ["sky"] = "하늘",
+    ["earth"] = "지구", ["fire"] = "불", ["peace"] = "평화", ["war"] = "전쟁", ["long"] = "긴",
+    ["short"] = "짧은", ["fast"] = "빠른", ["slow"] = "느린", ["waterfall"] = "폭포", ["river"] = "강",
+    ["mountain"] = "산", ["sea"] = "바다", ["rain"] = "비", ["snow"] = "눈", ["wind"] = "바람",
+    ["cloud"] = "구름", ["treehouse"] = "나무집", ["island"] = "섬", ["forest"] = "숲", ["desert"] = "사막",
+    ["friendship"] = "우정", ["hope"] = "희망", ["dream"] = "꿈", ["truth"] = "진실", ["faith"] = "믿음",
+    ["freedom"] = "자유", ["joy"] = "기쁨", ["strength"] = "힘", ["honor"] = "명예", ["brave"] = "용감한",
+    ["light"] = "빛", ["dark"] = "어두운", ["cold"] = "추운", ["hot"] = "뜨거운", ["sweet"] = "달콤한",
+    ["bitter"] = "쓴", ["clean"] = "깨끗한", ["dirty"] = "더러운"
+}
+
+alphabetMap["Korean"] = {
+    a = "ㅏ", b = "ㅂ", c = "ㅊ", d = "ㄷ", e = "ㅔ", f = "ㅍ", g = "ㄱ", h = "ㅎ", i = "ㅣ", j = "ㅈ",
+    k = "ㅋ", l = "ㄹ", m = "ㅁ", n = "ㄴ", o = "ㅗ", p = "ㅍ", q = "ㅋ", r = "ㄹ", s = "ㅅ", t = "ㅌ",
+    u = "ㅜ", v = "ㅂ", w = "ㅜ", x = "ㅅㅋ", y = "ㅛ", z = "ㅈ"
+}
+
+vowels["Korean"] = { "ㅏ", "ㅓ", "ㅗ", "ㅜ", "ㅡ", "ㅣ", "ㅐ", "ㅔ", "ㅚ", "ㅟ", "ㅑ", "ㅕ", "ㅛ", "ㅠ" }
+
+-- Arabic dictionary and mappings
+dictionaries["Arabic"] = {
+    ["hello"] = "مرحبا", ["thank"] = "شكرا", ["yes"] = "نعم", ["no"] = "لا", ["please"] = "من فضلك",
+    ["sorry"] = "آسف", ["love"] = "حب", ["friend"] = "صديق", ["food"] = "طعام", ["water"] = "ماء",
+    ["house"] = "بيت", ["car"] = "سيارة", ["book"] = "كتاب", ["computer"] = "حاسوب", ["phone"] = "هاتف",
+    ["cat"] = "قط", ["dog"] = "كلب", ["sun"] = "شمس", ["moon"] = "قمر", ["star"] = "نجم",
+    ["happy"] = "سعيد", ["sad"] = "حزين", ["run"] = "يركض", ["walk"] = "يمشي", ["sleep"] = "ينام",
+    ["work"] = "يعمل", ["play"] = "يلعب", ["school"] = "مدرسة", ["family"] = "عائلة", ["child"] = "طفل",
+    ["mother"] = "أم", ["father"] = "أب", ["music"] = "موسيقى", ["dance"] = "يرقص", ["money"] = "مال",
+    ["market"] = "سوق", ["road"] = "طريق", ["tree"] = "شجرة", ["flower"] = "زهرة", ["sky"] = "سماء",
+    ["earth"] = "أرض", ["fire"] = "نار", ["peace"] = "سلام", ["war"] = "حرب", ["long"] = "طويل",
+    ["short"] = "قصير", ["fast"] = "سريع", ["slow"] = "بطيء", ["waterfall"] = "شلال", ["river"] = "نهر",
+    ["mountain"] = "جبل", ["sea"] = "بحر", ["rain"] = "مطر", ["snow"] = "ثلج", ["wind"] = "ريح",
+    ["cloud"] = "سحابة", ["treehouse"] = "بيت شجرة", ["island"] = "جزيرة", ["forest"] = "غابة", ["desert"] = "صحراء",
+    ["friendship"] = "صداقة", ["hope"] = "أمل", ["dream"] = "حلم", ["truth"] = "حقيقة", ["faith"] = "إيمان",
+    ["freedom"] = "حرية", ["joy"] = "فرح", ["strength"] = "قوة", ["honor"] = "شرف", ["brave"] = "شجاع",
+    ["light"] = "ضوء", ["dark"] = "ظلام", ["cold"] = "بارد", ["hot"] = "حار", ["sweet"] = "حلو",
+    ["bitter"] = "مر", ["clean"] = "نظيف", ["dirty"] = "قذر"
+}
+
+alphabetMap["Arabic"] = {
+    a = "ا", b = "ب", c = "ك", d = "د", e = "ي", f = "ف", g = "ج", h = "ه", i = "ي", j = "ج",
+    k = "ك", l = "ل", m = "م", n = "ن", o = "و", p = "ب", q = "ق", r = "ر", s = "س", t = "ت",
+    u = "و", v = "ف", w = "و", x = "كس", y = "ي", z = "ز"
+}
+
+vowels["Arabic"] = { "ا", "و", "ي", "ى", "ئ", "أ", "إ", "آ" }
+
+-- Hindi dictionary and mappings
+dictionaries["Hindi"] = {
+    ["hello"] = "नमस्ते", ["thank"] = "धन्यवाद", ["yes"] = "हाँ", ["no"] = "नहीं", ["please"] = "कृपया",
+    ["sorry"] = "माफ़ करें", ["love"] = "प्यार", ["friend"] = "मित्र", ["food"] = "खाना", ["water"] = "पानी",
+    ["house"] = "घर", ["car"] = "कार", ["book"] = "किताब", ["computer"] = "कंप्यूटर", ["phone"] = "फोन",
+    ["cat"] = "बिल्ली", ["dog"] = "कुत्ता", ["sun"] = "सूरज", ["moon"] = "चाँद", ["star"] = "तारा",
+    ["happy"] = "खुश", ["sad"] = "दुखी", ["run"] = "दौड़ना", ["walk"] = "चलना", ["sleep"] = "सोना",
+    ["work"] = "काम", ["play"] = "खेलना", ["school"] = "स्कूल", ["family"] = "परिवार", ["child"] = "बच्चा",
+    ["mother"] = "माँ", ["father"] = "पिता", ["music"] = "संगीत", ["dance"] = "नृत्य", ["money"] = "पैसे",
+    ["market"] = "बाज़ार", ["road"] = "सड़क", ["tree"] = "पेड़", ["flower"] = "फूल", ["sky"] = "आसमान",
+    ["earth"] = "पृथ्वी", ["fire"] = "आग", ["peace"] = "शांति", ["war"] = "युद्ध", ["long"] = "लंबा",
+    ["short"] = "छोटा", ["fast"] = "तेज़", ["slow"] = "धीमा", ["waterfall"] = "जलप्रपात", ["river"] = "नदी",
+    ["mountain"] = "पहाड़", ["sea"] = "समुद्र", ["rain"] = "बारिश", ["snow"] = "बर्फ", ["wind"] = "हवा",
+    ["cloud"] = "बादल", ["treehouse"] = "पेड़ का घर", ["island"] = "द्वीप", ["forest"] = "जंगल", ["desert"] = "रेगिस्तान",
+    ["friendship"] = "मित्रता", ["hope"] = "आशा", ["dream"] = "सपना", ["truth"] = "सच्चाई", ["faith"] = "विश्वास",
+    ["freedom"] = "स्वतंत्रता", ["joy"] = "खुशी", ["strength"] = "शक्ति", ["honor"] = "सम्मान", ["brave"] = "बहादुर",
+    ["light"] = "प्रकाश", ["dark"] = "अंधेरा", ["cold"] = "ठंडा", ["hot"] = "गर्म", ["sweet"] = "मीठा",
+    ["bitter"] = "कड़वा", ["clean"] = "साफ़", ["dirty"] = "गंदा"
+}
+
+alphabetMap["Hindi"] = {
+    a = "अ", b = "ब", c = "क", d = "द", e = "ए", f = "फ", g = "ग", h = "ह", i = "इ", j = "ज",
+    k = "क", l = "ल", m = "म", n = "न", o = "ओ", p = "प", q = "क़", r = "र", s = "स", t = "त",
+    u = "उ", v = "व", w = "व", x = "क्स", y = "य", z = "ज"
+}
+
+vowels["Hindi"] = { "अ", "आ", "इ", "ई", "उ", "ऊ", "ए", "ऐ", "ओ", "औ" }
+
+-- Portuguese dictionary and mappings
+dictionaries["Portuguese"] = {
+    ["hello"] = "olá", ["thank"] = "obrigado", ["yes"] = "sim", ["no"] = "não", ["please"] = "por favor",
+    ["sorry"] = "desculpa", ["love"] = "amor", ["friend"] = "amigo", ["food"] = "comida", ["water"] = "água",
+    ["house"] = "casa", ["car"] = "carro", ["book"] = "livro", ["computer"] = "computador", ["phone"] = "telefone",
+    ["cat"] = "gato", ["dog"] = "cachorro", ["sun"] = "sol", ["moon"] = "lua", ["star"] = "estrela",
+    ["happy"] = "feliz", ["sad"] = "triste", ["run"] = "correr", ["walk"] = "andar", ["sleep"] = "dormir",
+    ["work"] = "trabalhar", ["play"] = "brincar", ["school"] = "escola", ["family"] = "família", ["child"] = "criança",
+    ["mother"] = "mãe", ["father"] = "pai", ["music"] = "música", ["dance"] = "dança", ["money"] = "dinheiro",
+    ["market"] = "mercado", ["road"] = "estrada", ["tree"] = "árvore", ["flower"] = "flor", ["sky"] = "céu",
+    ["earth"] = "terra", ["fire"] = "fogo", ["peace"] = "paz", ["war"] = "guerra", ["long"] = "longo",
+    ["short"] = "curto", ["fast"] = "rápido", ["slow"] = "devagar", ["waterfall"] = "cachoeira", ["river"] = "rio",
+    ["mountain"] = "montanha", ["sea"] = "mar", ["rain"] = "chuva", ["snow"] = "neve", ["wind"] = "vento",
+    ["cloud"] = "nuvem", ["treehouse"] = "casa na árvore", ["island"] = "ilha", ["forest"] = "floresta", ["desert"] = "deserto",
+    ["friendship"] = "amizade", ["hope"] = "esperança", ["dream"] = "sonho", ["truth"] = "verdade", ["faith"] = "fé",
+    ["freedom"] = "liberdade", ["joy"] = "alegria", ["strength"] = "força", ["honor"] = "honra", ["brave"] = "corajoso",
+    ["light"] = "luz", ["dark"] = "escuro", ["cold"] = "frio", ["hot"] = "quente", ["sweet"] = "doce",
+    ["bitter"] = "amargo", ["clean"] = "limpo", ["dirty"] = "sujo"
+}
+
+alphabetMap["Portuguese"] = {
+    a = "a", b = "b", c = "c", d = "d", e = "e", f = "f", g = "g", h = "h", i = "i", j = "j",
+    k = "k", l = "l", m = "m", n = "n", o = "o", p = "p", q = "q", r = "r", s = "s", t = "t",
+    u = "u", v = "v", w = "w", x = "x", y = "y", z = "z"
+}
+
+vowels["Portuguese"] = { "a", "e", "i", "o", "u", "á", "é", "í", "ó", "ú", "â", "ê", "ô" }
+
+local languageNotified = false
+local cooldown = 2
+local lastSendTime = 0
+local translationEnabled = false
+local selectedLanguage = nil
+local lastMessage = ""
+
+local languages = {
+    "Tagalog", "German", "Chinese", "Russian", "Japanese", "Thai", "Vietnamese",
+    "Spanish", "French", "Italian", "Korean", "Arabic", "Hindi", "Portuguese"
 }
 
 local function notify(title, text)
@@ -133,13 +449,36 @@ end
 local function translateWord(word)
     if not selectedLanguage then return word end
     local dict = dictionaries[selectedLanguage]
-    if not dict then return word end
-    local lowerWord = word:lower()
-    if dict[lowerWord] then
-        return dict[lowerWord]
-    else
-        return word
+    if dict and dict[word:lower()] then
+        return dict[word:lower()]
     end
+
+    -- vowel fallback
+    local vowelSet = vowels[selectedLanguage]
+    if vowelSet then
+        local result = ""
+        for c in word:lower():gmatch(".") do
+            if table.find(vowelSet, c) then
+                result = result .. c -- keep vowel or substitute as needed
+            else
+                local alphaMap = alphabetMap[selectedLanguage]
+                result = result .. (alphaMap and alphaMap[c] or c)
+            end
+        end
+        return result
+    end
+
+    -- alphabet fallback only
+    local alphaMap = alphabetMap[selectedLanguage]
+    if alphaMap then
+        local result = ""
+        for c in word:lower():gmatch(".") do
+            result = result .. (alphaMap[c] or c)
+        end
+        return result
+    end
+
+    return word
 end
 
 local function translateText(text)
@@ -151,37 +490,28 @@ local function translateText(text)
     return table.concat(words, " ")
 end
 
--- Show language picker ONCE
-local languageNotified = false
-
-task.delay(1, function()
-    if not languageNotified then
-        notify("Language Picker", "Pick your language:\n1 = Tagalog\n2 = German\n3 = Chinese")
-        task.delay(2, function()
-            notify("Language Picker", "Pick your language:\n4 = Russian\n5 = Japanese\n6 = Thai\n7 = Vietnamese")
-        end)
-        languageNotified = true
+local function notifyLanguages()
+    for i = 1, #languages, 3 do
+        local batch = {}
+        for j = i, math.min(i+2, #languages) do
+            table.insert(batch, j .. " = " .. languages[j])
+        end
+        notify("Language Picker", table.concat(batch, "\n"))
+        task.wait(4)
     end
-end) 
+end
+
+-- Show language picker ONCE
+if not languageNotified then
+    task.spawn(notifyLanguages)
+    languageNotified = true
+end
 
 local function handleMessage(text)
     if not translationEnabled then
-        if text == "1" then
-            selectedLanguage = "Tagalog"
-        elseif text == "2" then
-            selectedLanguage = "German"
-        elseif text == "3" then
-            selectedLanguage = "Chinese"
-        elseif text == "4" then
-            selectedLanguage = "Russian"
-        elseif text == "5" then
-            selectedLanguage = "Japanese"
-        elseif text == "6" then
-            selectedLanguage = "Thai"
-        elseif text == "7" then
-            selectedLanguage = "Vietnamese"
-        end
-        if selectedLanguage then
+        local langNum = tonumber(text)
+        if langNum and languages[langNum] then
+            selectedLanguage = languages[langNum]
             translationEnabled = true
             notify("Language Selected", "You picked: " .. selectedLanguage)
         end
@@ -197,28 +527,3 @@ local function handleMessage(text)
             SayMessageRequest:FireServer(translated, "All")
         else
             local channel = TextChatService:FindFirstChild("TextChannels") and TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-            if channel then
-                channel:SendAsync(translated)
-            end
-        end
-    end
-end
-
-if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-    TextChatService.MessageReceived:Connect(function(msg)
-        if msg.TextSource and msg.TextSource.UserId == player.UserId then
-            if msg.Text ~= lastMessage then
-                lastMessage = msg.Text
-                handleMessage(msg.Text)
-            end
-        end
-    end)
-else
-    local function onChatted(msg)
-        if msg ~= lastMessage then
-            lastMessage = msg
-            handleMessage(msg)
-        end
-    end
-    player.Chatted:Connect(onChatted)
-end
