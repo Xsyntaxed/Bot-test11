@@ -153,12 +153,16 @@ end
 
 -- Show language picker ONCE
 local languageNotified = false
+
 task.delay(1, function()
     if not languageNotified then
-        notify("Language Picker", "Pick your language:\n1 = Tagalog\n2 = German\n3 = Chinese\n4 = Russian\n5 = Japanese\n6 = Thai\n7 = Vietnamese")
+        notify("Language Picker", "Pick your language:\n1 = Tagalog\n2 = German\n3 = Chinese")
+        task.delay(1, function()
+            notify("Language Picker", "Pick your language:\n4 = Russian\n5 = Japanese\n6 = Thai\n7 = Vietnamese")
+        end)
         languageNotified = true
     end
-end)
+end) 
 
 local function handleMessage(text)
     if not translationEnabled then
