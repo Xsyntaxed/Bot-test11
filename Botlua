@@ -1,50 +1,13 @@
 local VERSION = "2.5.5"
 
 local letters = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"}
-local userCooldowns = {}
-local currentQuestion
-local questionAnsweredBy
-local quizRunning = false
 
 local HttpService = game:GetService("HttpService")
 local players = game:GetService("Players")
 local localPlayer = players.LocalPlayer
-local blockedPlayers = {}
-local whiteListedplayers = {}
-local mode = "Quiz"
-local answeredCorrectly = {}
-local submittedAnswer = {}
-local awaitingAnswer = false
-local questionPoints = 1
-local timeSinceLastMessage = tick()
-local placeId = game.PlaceId
 local replicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 local textChatService = game:GetService("TextChatService")
-
-local quizCooldown = false
-local answerOptionsSaid = 0
-local minMessageCooldown = 2.3
-local whiteListEnabled = false
-
-local ContextActionService = game:GetService("ContextActionService")
-local UserInputService = game:GetService("UserInputService")
-
--- Settings
-local settings = {
-    questionTimeout = 10,
-    userCooldown = 5,
-    sendLeaderBoardAfterQuestions = 0,
-    automaticLeaderboards = true,
-    automaticCurrentQuizLeaderboard = false,
-    automaticServerQuizLeaderboard = true,
-    signStatus = true,
-    romanNumbers = true,
-    autoplay = false,
-    repeatTagged = true,
-    sendDetailedCategorylist = false,
-    removeLeavingPlayersFromLB = true,
-}
 
 local oldChat
 if textChatService.ChatVersion == Enum.ChatVersion.TextChatService then
@@ -61,7 +24,6 @@ local function Chat(msg)
     end
 end
 
--- Language alphabet maps --
 local alphabets = {
     ["1"] = { -- Chinese pinyin style (simplified mapping)
         A = "ā", B = "b", C = "c", D = "d", E = "ē",
@@ -79,7 +41,7 @@ local alphabets = {
         U = "У", V = "В", W = "В", X = "Кс", Y = "Ы", Z = "З",
         [" "] = " "
     },
-    ["3"] = { -- Japanese Hiragana approx (romanji to hiragana single letters)
+    ["3"] = { -- Japanese Hiragana approx
         A = "あ", B = "ぶ", C = "く", D = "ど", E = "え",
         F = "ふ", G = "ぐ", H = "は", I = "い", J = "じ",
         K = "か", L = "る", M = "む", N = "ん", O = "お",
@@ -92,19 +54,14 @@ local alphabets = {
 local chosenLanguage = nil
 local translatingEnabled = false
 
--- Notify to choose language
 StarterGui:SetCore("SendNotification", {
     Title = "Language Selection",
     Text = "Hello! Pick your language:\n1 - Chinese\n2 - Russian\n3 - Japanese",
     Duration = 10
 })
 
--- Handle chat message intercept and translation
-local function onPlayerChatted(player, message)
-    if player ~= localPlayer then return end
-
+local function onPlayerChatted(message)
     if not translatingEnabled then
-        -- If not translating, check if they pick a language
         if message == "1" or message == "2" or message == "3" then
             chosenLanguage = message
             translatingEnabled = true
@@ -113,11 +70,10 @@ local function onPlayerChatted(player, message)
                 Text = "You chose language " .. chosenLanguage,
                 Duration = 5
             })
-            return -- Don't send original language pick message to chat
+            return -- Don't send language choice message
         end
-        return -- No translation active yet, let messages go normally
+        return -- No translation yet, send message normally
     else
-        -- If translation enabled, check for stop command
         if message:lower() == "?stop" then
             translatingEnabled = false
             chosenLanguage = nil
@@ -126,11 +82,10 @@ local function onPlayerChatted(player, message)
                 Text = "You stopped the language translation.",
                 Duration = 5
             })
-            return -- Don't send stop command message to chat
+            return -- Don't send stop command message
         end
     end
 
-    -- Translate message letter by letter
     if translatingEnabled and chosenLanguage and alphabets[chosenLanguage] then
         local langMap = alphabets[chosenLanguage]
         local translated = ""
@@ -144,12 +99,11 @@ local function onPlayerChatted(player, message)
             end
         end
         Chat(translated)
-        return -- Block original message sending
+        return -- Block original message
     end
 end
 
-players.PlayerChatted:Connect(onPlayerChatted)
+localPlayer.Chatted:Connect(onPlayerChatted)
 
--- Send initial greeting in chat
 task.wait(1)
-Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese) .")
+Chat("Hi! Please pick your language by typing 1 (Chinese), 2 (Russian), or 3 (Japanese). Type ?stop to disable translation.")
