@@ -4,13 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
-local SayMessageRequest = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+local SayMessageRequest = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
 
 local selectedLanguage = nil
 local translationEnabled = false
-local lastMessage = ""
-local cooldown = 2
 local lastSendTime = 0
+local cooldown = 2
+local debounce = false
 
 local translations = {
 	["Chinese"] = {
@@ -24,25 +24,23 @@ local translations = {
 	}
 }
 
-local function notify(title, text)
-	local success, err = pcall(function()
-		StarterGui:SetCore("SendNotification", {
-			Title = title,
-			Text = text,
-			Duration = 3
-		})
-	end)
+-- ✅ Show startup notification
+StarterGui:SetCore("SendNotification", {
+	Title = "Hello!",
+	Text = "Pick your language:\n1 = Chinese\n2 = Russian\n3 = Japanese",
+	Duration = 5
+})
 
-	if not success then
-		warn("Notification failed: " .. err)
-		print("Fallback Notification:", title, text)
-	end
+-- ✅ Send a message using the legacy system
+local function Send(msg)
+	SayMessageRequest:FireServer(msg, "All")
 end
 
+-- ✅ Translation logic
 local function translate(text)
 	local words = {}
 	for word in text:lower():gmatch("%S+") do
-		local translated = translations[selectedLanguage] and translations[selectedLanguage][word] or word
+		local translated = translations[selectedLanguage][word] or word
 		table.insert(words, translated)
 	end
 	return table.concat(words, " ")
@@ -53,11 +51,8 @@ TextChatService.MessageReceived:Connect(function(messageObj)
 	if not sender or sender ~= player then return end
 
 	local text = messageObj.Text
-	print("Received message:", text)
 
-	if text == lastMessage then return end -- prevents double fire
-	lastMessage = text
-
+	-- ✅ Handle language selection
 	if not translationEnabled then
 		if text == "1" then
 			selectedLanguage = "Chinese"
@@ -69,31 +64,42 @@ TextChatService.MessageReceived:Connect(function(messageObj)
 
 		if selectedLanguage then
 			translationEnabled = true
-			notify("Language Selected", "You selected " .. selectedLanguage)
-			print("Language selected:", selectedLanguage)
+			StarterGui:SetCore("SendNotification", {
+				Title = "Language Selected",
+				Text = "You selected " .. selectedLanguage,
+				Duration = 3
+			})
 		end
 		return
 	end
 
+	-- ✅ Stop command
 	if text == "?stop" then
 		translationEnabled = false
 		selectedLanguage = nil
-		notify("Translation Stopped", "Translation has been disabled.")
-		print("Translation stopped.")
+		StarterGui:SetCore("SendNotification", {
+			Title = "Translation Stopped",
+			Text = "Translation has been disabled.",
+			Duration = 3
+		})
 		return
 	end
 
-	if translationEnabled and (tick() - lastSendTime > cooldown) then
+	-- ✅ Prevent spam and freezing
+	if translationEnabled and not debounce and (tick() - lastSendTime >= cooldown) then
+		debounce = true
 		lastSendTime = tick()
-		local translated = translate(text)
-		if translated ~= text then
-			local combinedMessage = "Original: " .. text .. " | Translated: " .. translated
-			print("Sending message:", combinedMessage)
-			if SayMessageRequest then
-				SayMessageRequest:FireServer(combinedMessage, "All")
-			else
-				warn("SayMessageRequest not available.")
-			end
+
+		local translatedText = translate(text)
+		if translatedText ~= text then
+			task.wait(0.5) -- short delay for safety
+			Send(text) -- original message
+			task.wait(0.5)
+			Send(translatedText) -- translated message
 		end
+
+		task.delay(1, function()
+			debounce = false
+		end)
 	end
 end)
