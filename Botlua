@@ -1,14 +1,17 @@
 local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
-local playerName = player.Name
-local translationEnabled = false
-local selectedLanguage = nil
-local lastProcessedMessage = ""
+local SayMessageRequest = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest")
 
--- Translation dictionaries
+local selectedLanguage = nil
+local translationEnabled = false
+local lastMessage = ""
+local cooldown = 2
+local lastSendTime = 0
+
 local translations = {
 	["Chinese"] = {
 		["hi"] = "你好", ["hello"] = "你好", ["how are you"] = "你好吗", ["yes"] = "是", ["no"] = "不", ["bye"] = "再见"
@@ -21,82 +24,62 @@ local translations = {
 	}
 }
 
--- Prevent spam
-local lastSentTime = 0
-local cooldown = 1.5
-
--- Choose language function
-local function chooseLanguage(message)
-	if message == "1" then
-		selectedLanguage = "Chinese"
-	elseif message == "2" then
-		selectedLanguage = "Russian"
-	elseif message == "3" then
-		selectedLanguage = "Japanese"
-	end
-
-	if selectedLanguage then
-		translationEnabled = true
-		StarterGui:SetCore("SendNotification", {
-			Title = "Language Selected",
-			Text = "You selected " .. selectedLanguage,
-			Duration = 3
-		})
-	end
+local function notify(title, text)
+	StarterGui:SetCore("SendNotification", {
+		Title = title,
+		Text = text,
+		Duration = 3
+	})
 end
 
--- Translate function
-local function translateMessage(message)
-	local lower = string.lower(message)
+local function translate(text)
 	local words = {}
-	for word in lower:gmatch("%S+") do
-		table.insert(words, word)
+	for word in text:lower():gmatch("%S+") do
+		local translated = translations[selectedLanguage][word] or word
+		table.insert(words, translated)
 	end
-
-	local translated = ""
-	for _, word in ipairs(words) do
-		local translatedWord = translations[selectedLanguage][word] or word
-		translated = translated .. translatedWord .. " "
-	end
-
-	return translated:sub(1, -2) -- remove trailing space
+	return table.concat(words, " ")
 end
 
--- Main chat listener
-TextChatService.MessageReceived:Connect(function(chatMessage)
-	if chatMessage.TextSource then
-		local sender = Players:GetPlayerByUserId(chatMessage.TextSource.UserId)
-		if sender and sender == player then
-			local message = chatMessage.Text
+TextChatService.MessageReceived:Connect(function(messageObj)
+	local sender = Players:GetPlayerByUserId(messageObj.TextSource.UserId)
+	if not sender or sender ~= player then return end
 
-			-- Stop command
-			if message == "?stop" then
-				translationEnabled = false
-				selectedLanguage = nil
-				StarterGui:SetCore("SendNotification", {
-					Title = "Translation Disabled",
-					Text = "Translation has been stopped.",
-					Duration = 3
-				})
-				return
-			end
+	local text = messageObj.Text
+	if text == lastMessage then return end -- prevents double fire
+	lastMessage = text
 
-			-- Language choice
-			if not translationEnabled then
-				chooseLanguage(message)
-				return
-			end
+	-- Language choice
+	if not translationEnabled then
+		if text == "1" then
+			selectedLanguage = "Chinese"
+		elseif text == "2" then
+			selectedLanguage = "Russian"
+		elseif text == "3" then
+			selectedLanguage = "Japanese"
+		end
 
-			-- Avoid double-processing or spamming
-			if message == lastProcessedMessage or (tick() - lastSentTime) < cooldown then return end
-			lastProcessedMessage = message
-			lastSentTime = tick()
+		if selectedLanguage then
+			translationEnabled = true
+			notify("Language Selected", "You selected " .. selectedLanguage)
+		end
+		return
+	end
 
-			-- Translate and send
-			local translated = translateMessage(message)
-			if translated ~= message then
-				game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(translated, "All")
-			end
+	-- Stop translation
+	if text == "?stop" then
+		translationEnabled = false
+		selectedLanguage = nil
+		notify("Translation Stopped", "Translation has been disabled.")
+		return
+	end
+
+	-- Handle translation
+	if translationEnabled and (tick() - lastSendTime > cooldown) then
+		lastSendTime = tick()
+		local translated = translate(text)
+		if translated ~= text then
+			SayMessageRequest:FireServer(translated, "All")
 		end
 	end
 end)
