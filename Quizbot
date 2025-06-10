@@ -1,83 +1,191 @@
--- ROBLOX QUIZ SCRIPT (for Delta Executor) -- Multiplayer Chat Quiz System with Scoreboard, Notifications, and Category Picking
+-- Services
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local TextChatService = game:GetService("TextChatService")
 
-local Players = game:GetService("Players") local ReplicatedStorage = game:GetService("ReplicatedStorage") local StarterGui = game:GetService("StarterGui") local TextChatService = game:GetService("TextChatService")
+-- Variables
+local player = Players.LocalPlayer
+local SayMessageRequest = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") 
+    and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
-local player = Players.LocalPlayer local SayMessageRequest = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+local lastMessage = ""
+local quizActive = false
+local currentCategory = nil
+local currentQuestionIndex = 0
+local currentQuestionData = nil
+local questionTimer = nil
+local playerScores = {}
+local answeringEnabled = false
 
--- Quiz Setup local quizActive = false local currentCategory = nil local currentQuestionIndex = 1 local currentQuestionData = nil local questionTimer = 10 local answered = false local scores = {} local cooldown = 1 local lastSend = 0
+local categories = {
+    ["Math"] = {
+        { q = "What is the derivative of x^2?", a = "B", c = {"x", "2x", "x^2", "2"}, correct = "2x" },
+    },
+    ["Science"] = {
+        { q = "What gas do plants absorb?", a = "C", c = {"Oxygen", "Nitrogen", "Carbon Dioxide", "Hydrogen"}, correct = "Carbon Dioxide" },
+    },
+    ["English"] = {
+        { q = "Which is a synonym of 'happy'?", a = "A", c = {"Joyful", "Angry", "Sad", "Tired"}, correct = "Joyful" },
+    },
+    ["History"] = {
+        { q = "Who was the first US president?", a = "D", c = {"John Adams", "Thomas Jefferson", "Abraham Lincoln", "George Washington"}, correct = "George Washington" },
+    },
+    ["Sports"] = {
+        { q = "How many players on a football team?", a = "B", c = {"9", "11", "10", "12"}, correct = "11" },
+    },
+    ["Biology"] = {
+        { q = "What part of the cell contains DNA?", a = "C", c = {"Ribosome", "Cytoplasm", "Nucleus", "Membrane"}, correct = "Nucleus" },
+    },
+    ["Memes"] = {
+        { q = "What does 'sus' come from?", a = "D", c = {"Facebook", "Twitch", "YouTube", "Among Us"}, correct = "Among Us" },
+    },
+    ["Brainrot"] = {
+        { q = "What's 9 + 10?", a = "B", c = {"19", "21", "20", "18"}, correct = "21" },
+    },
+    ["Games"] = {
+        { q = "Which game has 'Creepers'?", a = "A", c = {"Minecraft", "Roblox", "Fortnite", "Valorant"}, correct = "Minecraft" },
+    },
+    ["WW1"] = {
+        { q = "When did WW1 start?", a = "C", c = {"1910", "1912", "1914", "1916"}, correct = "1914" },
+    },
+}
 
-local categories = { ["Math"] = { {question = "What is the derivative of x^2?", options = {"A = x", "B = 2x", "C = x^2", "D = 1"}, answer = "B", full = "2x"}, }, ["Science"] = { {question = "What planet has the most gravity?", options = {"A = Earth", "B = Jupiter", "C = Saturn", "D = Mars"}, answer = "B", full = "Jupiter"}, }, ["English"] = { {question = "What is a synonym of 'rapid'?", options = {"A = Slow", "B = Fast", "C = Weak", "D = Loud"}, answer = "B", full = "Fast"}, }, ["History"] = { {question = "Who was the first president of the USA?", options = {"A = Lincoln", "B = Adams", "C = Washington", "D = Jefferson"}, answer = "C", full = "Washington"}, }, ["Sports"] = { {question = "How many players in a football (soccer) team?", options = {"A = 11", "B = 9", "C = 10", "D = 12"}, answer = "A", full = "11"}, }, ["Biology"] = { {question = "What cell organelle produces energy?", options = {"A = Ribosome", "B = Mitochondria", "C = Nucleus", "D = Golgi"}, answer = "B", full = "Mitochondria"}, }, ["Brainrot"] = { {question = "Which is the silliest meme?", options = {"A = Skibidi Toilet", "B = Sigma", "C = Rizz", "D = Nerd"}, answer = "A", full = "Skibidi Toilet"}, }, ["Memes"] = { {question = "What does 'sus' mean?", options = {"A = Suspicious", "B = Substitute", "C = Sustain", "D = Sunset"}, answer = "A", full = "Suspicious"}, }, ["Games"] = { {question = "Who is the main character in Zelda?", options = {"A = Link", "B = Zelda", "C = Ganon", "D = Sheik"}, answer = "A", full = "Link"}, }, ["WW1"] = { {question = "What event started WW1?", options = {"A = Treaty signed", "B = Assassination of Archduke", "C = Invasion of Poland", "D = Bombing"}, answer = "B", full = "Assassination of Archduke"}, }, ["WW2"] = { {question = "Who was the UK prime minister in WW2?", options = {"A = Churchill", "B = Stalin", "C = Roosevelt", "D = Truman"}, answer = "A", full = "Churchill"}, }, ["Food and Drinks"] = { {question = "What is sushi made of?", options = {"A = Pasta", "B = Seaweed", "C = Lettuce", "D = Bread"}, answer = "B", full = "Seaweed"}, }, ["Guess the Flag"] = { {question = "Which country has a red circle on white?", options = {"A = China", "B = Japan", "C = South Korea", "D = Indonesia"}, answer = "B", full = "Japan"}, }, ["Guess the Movie"] = { {question = "Which movie has a ring and hobbits?", options = {"A = Harry Potter", "B = LOTR", "C = Hobbit", "D = Narnia"}, answer = "B", full = "LOTR"}, }, }
-
-local function sendChat(msg) if tick() - lastSend < cooldown then return end lastSend = tick() if SayMessageRequest then SayMessageRequest:FireServer(msg, "All") end end
-
-local function notify(title, text) pcall(function() StarterGui:SetCore("SendNotification", { Title = title, Text = text, Duration = 4 }) end) end
-
--- Commands sendChat("Type !categories to pick a quiz category.") sendChat("Type !stop to end the quiz early.")
-
-local function showCategories() local list = {} for k, _ in pairs(categories) do table.insert(list, k) end sendChat("Available Categories: " .. table.concat(list, ", ")) end
-
-local function showScores() local sorted = {} for name, score in pairs(scores) do table.insert(sorted, {name = name, score = score}) end table.sort(sorted, function(a, b) return a.score > b.score end)
-
-sendChat("🏁 Quiz Over! Final Scores:")
-for i, entry in ipairs(sorted) do
-    local medal = i == 1 and "🥇" or i == 2 and "🥈" or i == 3 and "🥉" or "🎖️"
-    sendChat(medal .. entry.name .. " (" .. entry.score .. ")")
-end
-
-end
-
-local function askQuestion() answered = false local qData = categories[currentCategory][currentQuestionIndex] currentQuestionData = qData sendChat("[" .. currentCategory .. "] Question " .. currentQuestionIndex .. ": " .. qData.question) for _, opt in ipairs(qData.options) do sendChat(opt) end
-
-task.delay(questionTimer, function()
-    if not answered then
-        sendChat("⏰ Time's up! The answer was: " .. qData.full)
-        currentQuestionIndex += 1
-        if categories[currentCategory][currentQuestionIndex] then
-            askQuestion()
-        else
-            quizActive = false
-            showScores()
-        end
+-- Send a message in chat
+local function say(msg)
+    if SayMessageRequest then
+        SayMessageRequest:FireServer(msg, "All")
+    else
+        local ch = TextChatService.TextChannels and TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+        if ch then ch:SendAsync(msg) end
     end
-end)
-
 end
 
-local function onMessage(text, sender) local name = sender.Name local msg = text:lower()
+-- Show popup
+local function notify(title, text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 5
+        })
+    end)
+end
 
-if msg == "!categories" then
-    showCategories()
-elseif msg == "!stop" and quizActive then
-    quizActive = false
-    sendChat("Quiz manually stopped.")
-    showScores()
-elseif not quizActive and categories[text] then
+-- Show category list
+local function showCategories()
+    local msg = "Pick a category by typing its name:\n"
+    for name, _ in pairs(categories) do
+        msg = msg .. "- " .. name .. "\n"
+    end
+    say(msg)
+end
+
+-- Start the quiz
+local function startCategory(cat)
+    if not categories[cat] then
+        say("❌ Invalid category.")
+        return
+    end
     quizActive = true
-    currentCategory = text
-    currentQuestionIndex = 1
-    scores = {}
-    sendChat("📚 Starting quiz on category: " .. text)
-    task.delay(1, askQuestion)
-elseif quizActive and currentQuestionData and not answered then
-    local correct = currentQuestionData.answer:lower()
-    local full = currentQuestionData.full:lower()
-    if msg == correct or msg == full then
-        answered = true
-        scores[name] = (scores[name] or 0) + 1
-        sendChat("✅ " .. name .. " got the right answer! +1 point")
-        currentQuestionIndex += 1
-        if categories[currentCategory][currentQuestionIndex] then
-            task.wait(1)
-            askQuestion()
-        else
-            quizActive = false
-            task.wait(1)
-            showScores()
+    currentCategory = cat
+    currentQuestionIndex = 0
+    playerScores = {}
+    say("📚 Starting quiz: " .. cat)
+    askNextQuestion()
+end
+
+-- Ask the next question
+function askNextQuestion()
+    currentQuestionIndex += 1
+    local questions = categories[currentCategory]
+    if currentQuestionIndex > #questions then
+        endQuiz()
+        return
+    end
+    currentQuestionData = questions[currentQuestionIndex]
+    local q = currentQuestionData
+    local choices = ""
+    for i, opt in ipairs(q.c) do
+        choices = choices .. string.char(64+i) .. ". " .. opt .. "\n"
+    end
+    say("❓ " .. q.q .. "\n" .. choices .. "(10 seconds to answer)")
+    answeringEnabled = true
+    task.delay(10, function()
+        if answeringEnabled then
+            say("⏰ Time's up! The correct answer was: " .. q.correct)
+            answeringEnabled = false
+            askNextQuestion()
+        end
+    end)
+end
+
+-- End the quiz and show scoreboard
+function endQuiz()
+    quizActive = false
+    answeringEnabled = false
+    say("🏁 Quiz finished! Scoreboard:")
+    local scores = {}
+    for name, pts in pairs(playerScores) do
+        table.insert(scores, {name = name, score = pts})
+    end
+    table.sort(scores, function(a, b) return a.score > b.score end)
+    for i, data in ipairs(scores) do
+        local medal = i == 1 and "🥇" or i == 2 and "🥈" or i == 3 and "🥉" or "🎖️"
+        say(medal .. data.name .. " (" .. data.score .. ")")
+    end
+end
+
+-- Chat message listener
+function handleMessage(text, sender)
+    if not quizActive and categories[text] then
+        startCategory(text)
+        return
+    end
+    if text:lower() == "/stopquiz" and player == sender then
+        say("🛑 Quiz stopped by host.")
+        quizActive = false
+        return
+    end
+    if quizActive and answeringEnabled then
+        local q = currentQuestionData
+        if q then
+            local correct = q.correct:lower()
+            if text:lower() == q.a:lower() or text:lower() == correct then
+                answeringEnabled = false
+                local name = sender.Name
+                playerScores[name] = (playerScores[name] or 0) + 1
+                say("✅ " .. name .. " got it right! +1 point")
+                askNextQuestion()
+            end
         end
     end
 end
 
+-- Hook up chat
+if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+    TextChatService.MessageReceived:Connect(function(msg)
+        if msg.TextSource then
+            local sender = Players:GetPlayerByUserId(msg.TextSource.UserId)
+            if sender then
+                handleMessage(msg.Text, sender)
+            end
+        end
+    end)
+else
+    for _, plr in pairs(Players:GetPlayers()) do
+        plr.Chatted:Connect(function(msg)
+            handleMessage(msg, plr)
+        end)
+    end
+    Players.PlayerAdded:Connect(function(plr)
+        plr.Chatted:Connect(function(msg)
+            handleMessage(msg, plr)
+        end)
+    end)
 end
 
--- Listen to chat messages if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then TextChatService.MessageReceived:Connect(function(msg) if msg.Text and msg.TextSource then local plr = Players:GetPlayerByUserId(msg.TextSource.UserId) if plr then onMessage(msg.Text, plr) end end end) else player.Chatted:Connect(function(msg) onMessage(msg, player) end) end
-
+-- Notify script is ready
+notify("Quiz Bot", "Type any category name to begin!")
+say("🤖 Quiz Bot is active! Type a category name to start. Type /stopquiz to cancel.")
+showCategories()
