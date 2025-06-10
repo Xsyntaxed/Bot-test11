@@ -1,0 +1,79 @@
+-- Quiz Game Script
+
+local Players = game:GetService("Players") local ReplicatedStorage = game:GetService("ReplicatedStorage") local StarterGui = game:GetService("StarterGui") local TextChatService = game:GetService("TextChatService")
+
+local SayMessageRequest = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest") local player = Players.LocalPlayer
+
+local quizActive = false local selectedCategory = nil local currentQuestionIndex = 0 local currentQuestion = nil local answers = {} local scores = {} local questionTimer = nil local cooldown = 1 local lastMessage = ""
+
+local categories = { ["Math"] = { {q = "What is the derivative of x^2?", a = "B", choices = {"A = x", "B = 2x", "C = x^2", "D = 1"}}, }, ["Science"] = { {q = "What is the chemical symbol for gold?", a = "C", choices = {"A = Ag", "B = Go", "C = Au", "D = Gd"}}, }, ["English"] = { {q = "What is the antonym of 'optimistic'?", a = "D", choices = {"A = Hopeful", "B = Joyful", "C = Confident", "D = Pessimistic"}}, }, ["History"] = { {q = "Who was the first president of the USA?", a = "A", choices = {"A = George Washington", "B = Thomas Jefferson", "C = Abraham Lincoln", "D = John Adams"}}, }, ["Sports"] = { {q = "How many players are on a soccer team?", a = "C", choices = {"A = 10", "B = 8", "C = 11", "D = 12"}}, }, ["Biology"] = { {q = "What part of the cell contains DNA?", a = "A", choices = {"A = Nucleus", "B = Mitochondria", "C = Ribosome", "D = Cytoplasm"}}, }, ["Brainrot"] = { {q = "Which meme is known for 'why you always lying'?", a = "B", choices = {"A = Trollface", "B = Lying Man", "C = Wojak", "D = Chad"}}, }, ["Memes"] = { {q = "What year did 'Rickroll' become a meme?", a = "C", choices = {"A = 2012", "B = 2009", "C = 2007", "D = 2010"}}, }, ["Games"] = { {q = "Which company developed Minecraft?", a = "D", choices = {"A = Roblox", "B = Epic", "C = Valve", "D = Mojang"}}, }, ["Ww1"] = { {q = "What event triggered WW1?", a = "A", choices = {"A = Assassination of Franz Ferdinand", "B = Bombing of Pearl Harbor", "C = Treaty of Versailles", "D = Berlin Wall falling"}}, }, ["Ww2"] = { {q = "Who led Germany during WW2?", a = "B", choices = {"A = Stalin", "B = Hitler", "C = Mussolini", "D = Churchill"}}, }, ["Food and drinks"] = { {q = "Which vitamin is found in oranges?", a = "A", choices = {"A = Vitamin C", "B = Vitamin A", "C = Vitamin D", "D = Vitamin B12"}}, }, ["Guess the flag"] = { {q = "🇯🇵 Which country's flag is this?", a = "C", choices = {"A = Korea", "B = China", "C = Japan", "D = Taiwan"}}, }, ["Guess the movie"] = { {q = "Which movie has the line 'I am your father'?", a = "B", choices = {"A = Harry Potter", "B = Star Wars", "C = Avengers", "D = Matrix"}}, }, }
+
+local function notify(msg) pcall(function() StarterGui:SetCore("SendNotification", { Title = "Quiz", Text = msg, Duration = 4 }) end) end
+
+local function broadcast(msg) if SayMessageRequest then SayMessageRequest:FireServer(msg, "All") end end
+
+local function displayCategories() local list = {} local index = 1 for name in pairs(categories) do table.insert(list, index .. ". " .. name) index += 1 end broadcast("\n📚 Pick a category:\n" .. table.concat(list, "\n")) end
+
+local function getCategoryByIndex(index) local i = 1 for name in pairs(categories) do if i == tonumber(index) then return name end i += 1 end return nil end
+
+local function showQuestion() currentQuestion = categories[selectedCategory][currentQuestionIndex] if not currentQuestion then broadcast("❌ No more questions in this category.") quizActive = false return end
+
+broadcast("\n❓ " .. currentQuestion.q .. "\n" .. table.concat(currentQuestion.choices, "\n"))
+
+questionTimer = task.delay(10, function()
+    broadcast("⏰ Time's up! Correct answer: " .. currentQuestion.choices[currentQuestion.a:byte() - 64])
+    askNext()
+end)
+
+end
+
+function askNext() currentQuestionIndex += 1 showQuestion() end
+
+local function stopQuiz() quizActive = false selectedCategory = nil currentQuestionIndex = 0 currentQuestion = nil broadcast("🛑 Quiz stopped.") end
+
+local function showScores() local sorted = {} for name, score in pairs(scores) do table.insert(sorted, {name = name, score = score}) end table.sort(sorted, function(a, b) return a.score > b.score end)
+
+broadcast("\n🏆 Quiz Scoreboard:")
+for i, data in ipairs(sorted) do
+    local medal = i == 1 and "🥇" or i == 2 and "🥈" or i == 3 and "🥉" or "🎖️"
+    broadcast(medal .. " " .. data.name .. " (" .. data.score .. ")")
+end
+
+end
+
+local function handleMessage(text, sender) if text == "/startquiz" and not quizActive then scores = {} quizActive = true displayCategories() task.delay(10, function() if not selectedCategory then broadcast("❌ No category was picked. Quiz canceled.") quizActive = false end end) return end
+
+if text == "/stopquiz" and quizActive then
+    stopQuiz()
+    return
+end
+
+if not selectedCategory and quizActive then
+    local chosen = getCategoryByIndex(text)
+    if chosen then
+        selectedCategory = chosen
+        broadcast("✅ Category selected: " .. selectedCategory)
+        currentQuestionIndex = 1
+        showQuestion()
+    end
+    return
+end
+
+if currentQuestion and quizActive and sender then
+    local answer = text:upper()
+    local correctLetter = currentQuestion.a
+    local correctText = currentQuestion.choices[correctLetter:byte() - 64]:sub(5)
+    if answer == correctLetter or answer:lower() == correctText:lower() then
+        if questionTimer then task.cancel(questionTimer) end
+        scores[sender.Name] = (scores[sender.Name] or 0) + 1
+        broadcast("✅ " .. sender.Name .. " got 1 point! Answer: " .. correctText)
+        askNext()
+    end
+end
+
+end
+
+local function listen() if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then TextChatService.MessageReceived:Connect(function(msg) if msg.TextSource then local sender = Players:GetPlayerByUserId(msg.TextSource.UserId) handleMessage(msg.Text, sender) end end) else for _, p in ipairs(Players:GetPlayers()) do p.Chatted:Connect(function(msg) handleMessage(msg, p) end) end Players.PlayerAdded:Connect(function(p) p.Chatted:Connect(function(msg) handleMessage(msg, p) end) end) end end
+
+listen()
+
